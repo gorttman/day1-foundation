@@ -17,6 +17,7 @@ spec:
         app.kubernetes.io/name: dhcpd
         app.kubernetes.io/part-of: day1-foundation
     spec:
+      # ✅ Required for DHCP broadcast operation
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       serviceAccountName: dhcpd
@@ -42,7 +43,10 @@ spec:
           args:
             - -c
             - |
-              mkdir -p /var/lib/dhcp && touch /var/lib/dhcp/dhcpd.leases && exec /usr/sbin/dhcpd -f -cf /etc/dhcp/dhcpd.conf eth0
+              mkdir -p /var/lib/dhcp && \
+              touch /var/lib/dhcp/dhcpd.leases && \
+              # ✅ Bind DHCPD only to eth0
+              exec /usr/sbin/dhcpd -f -cf /etc/dhcp/dhcpd.conf eth0
           securityContext:
             capabilities:
               add:
