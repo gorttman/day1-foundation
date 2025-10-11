@@ -1,9 +1,18 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+namespace: infra
+
 resources:
-  - infra-namespace/infra-namespace.yml
-  - dhcpd/dhcpd-app.yml
-  - pxe-http/pxe-http-app.yml
-  - nfs-server/nfs-server-app.yml
-  - coredns/coredns-app.yml
+  - dhcpd-serviceaccount.yml
+  - dhcpd-role.yml
+  - dhcpd-rolebinding.yml
+  - dhcpd-deploy.yml
+
+configMapGenerator:
+  - name: dhcpd-config
+    files:
+      - dhcpd.conf=config/dhcpd.conf
+
+generatorOptions:
+  disableNameSuffixHash: true
