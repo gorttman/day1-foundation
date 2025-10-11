@@ -14,7 +14,6 @@ spec:
         app.kubernetes.io/name: pxe-http
         app.kubernetes.io/part-of: day1-foundation
     spec:
-      # ✅ Host networking for PXE boot delivery
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       containers:
@@ -30,13 +29,37 @@ spec:
             - name: nginx-config
               mountPath: /etc/nginx/conf.d
               readOnly: true
-          # ✅ Restrict nginx to eth0 only
           command: ["/bin/sh", "-c"]
           args:
             - |
               ETH_IP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}')
               echo "server { listen ${ETH_IP}:8081; root /usr/share/nginx/html; location / { autoindex on; } }" > /etc/nginx/conf.d/default.conf
               exec nginx -g 'daemon off;'
+
+        # ✅ Added TFTP sidecar
+        - name: tftp
+          image: linuxserver/tftp:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 7069
+              name: tftp
+              protocol: UDP
+          env:
+            - name: TFTP_DIRECTORY
+              value: /tftpboot
+            - name: TFTP_PORT
+              value: "7069"
+          volumeMounts:
+            - name: netboot-files
+              mountPath: /tftpboot
+              readOnly: true
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              ETH_IP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}')
+              echo "Binding TFTP to ${ETH_IP}:7069"
+              exec in.tftpd --foreground --secure --listen --address ${ETH_IP}:7069 /tftpboot
+
       volumes:
         - name: netboot-files
           configMap:
