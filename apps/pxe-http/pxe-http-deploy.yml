@@ -48,7 +48,7 @@ spec:
           image: ghcr.io/gorttman/tftp:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 7069
+            - containerPort: 69
               protocol: UDP
               name: tftp
           volumeMounts:
@@ -61,7 +61,7 @@ spec:
               # BusyBox-compatible IP extraction
               ETH_IP=$(ip -4 addr show eth0 | awk '/inet / {print $2}' | cut -d/ -f1)
               echo "Binding TFTP to ${ETH_IP}:7069"
-              exec in.tftpd --foreground --secure --listen --address ${ETH_IP}:7069 /tftpboot
+              exec in.tftpd --foreground --secure --listen --address ${ETH_IP}:69 /tftpboot
 
       # -------------------------------
       # Shared volumes
