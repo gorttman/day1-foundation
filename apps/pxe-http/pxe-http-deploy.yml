@@ -37,7 +37,7 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              ETH_IP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+              ETH_IP=$(ip -4 addr show eth0 | awk '/inet / {print $2}' | cut -d/ -f1)
               echo "server { listen ${ETH_IP}:8081; root /usr/share/nginx/html; location / { autoindex on; } }" > /etc/nginx/conf.d/default.conf
               exec nginx -g 'daemon off;'
 
@@ -58,7 +58,8 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              ETH_IP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+              # BusyBox-compatible IP extraction
+              ETH_IP=$(ip -4 addr show eth0 | awk '/inet / {print $2}' | cut -d/ -f1)
               echo "Binding TFTP to ${ETH_IP}:7069"
               exec in.tftpd --foreground --secure --listen --address ${ETH_IP}:7069 /tftpboot
 
