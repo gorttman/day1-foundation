@@ -15,7 +15,6 @@ spec:
       labels:
         app.kubernetes.io/name: dhcpd
     spec:
-      # --- critical: allows raw L2 access ---
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
 
@@ -24,7 +23,6 @@ spec:
           image: networkboot/dhcpd:latest
           imagePullPolicy: IfNotPresent
 
-          # --- full privilege and capabilities for L2 broadcast ---
           securityContext:
             privileged: true
             capabilities:
@@ -44,11 +42,11 @@ spec:
             - name: dhcp-config
               mountPath: /etc/dhcp
             - name: dhcp-leases
-              mountPath: /var/lib/dhcp
+              mountPath: /var/lib/dhcp   # ✅ required writable leases dir
 
       volumes:
         - name: dhcp-config
           configMap:
             name: dhcpd-config
-        - name: dhcp-leases
+        - name: dhcp-leases               # ✅ writable ephemeral volume
           emptyDir: {}
