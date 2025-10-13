@@ -46,7 +46,7 @@ spec:
               ip link set wlan0 down || true
               mkdir -p /var/lib/dhcp && \
               touch /var/lib/dhcp/dhcpd.leases && \
-              exec /usr/sbin/dhcpd -f -cf /etc/dhcp/dhcpd.conf eth0.10
+              exec /usr/sbin/dhcpd -f -cf /etc/dhcp/dhcpd.conf eth0
           securityContext:
             privileged: true                  # ✅ added for full raw network access
             capabilities:
