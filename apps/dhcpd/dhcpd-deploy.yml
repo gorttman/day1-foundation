@@ -5,7 +5,6 @@ metadata:
   namespace: infra
   labels:
     app.kubernetes.io/name: dhcpd
-    app.kubernetes.io/part-of: day1-foundation
 spec:
   replicas: 1
   selector:
@@ -15,81 +14,41 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: dhcpd
-        app.kubernetes.io/part-of: day1-foundation
     spec:
+      # --- critical: allows raw L2 access ---
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
-      serviceAccountName: dhcpd
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: kubernetes.io/arch
-                    operator: In
-                    values:
-                      - arm64
-                  - key: node-role.kubernetes.io/control-plane
-                    operator: In
-                    values:
-                      - ""
-                      - "true"
+
       containers:
         - name: dhcpd
-          image: ghcr.io/gorttman/dhcpd:latest
+          image: networkboot/dhcpd:latest
           imagePullPolicy: IfNotPresent
-          command: ["/bin/sh"]
-          args:
-            - -c
-            - |
-              # Disable wlan0 so dhcpd cannot bind to it
-              ip link set wlan0 down || true
-              mkdir -p /var/lib/dhcp && \
-              touch /var/lib/dhcp/dhcpd.leases && \
-              exec /usr/sbin/dhcpd -f -cf /etc/dhcp/dhcpd.conf eth0
+
+          # --- full privilege and capabilities for L2 broadcast ---
           securityContext:
+            privileged: true
             capabilities:
               add:
                 - NET_ADMIN
                 - NET_RAW
-                - NET_BIND_SERVICE
-            runAsNonRoot: false
-            runAsUser: 0
-          readinessProbe:
-            exec:
-              command:
-                - sh
-                - -c
-                - "dhcpd -t -cf /etc/dhcp/dhcpd.conf >/dev/null 2>&1"
-            initialDelaySeconds: 2
-            periodSeconds: 15
-            timeoutSeconds: 3
-            failureThreshold: 2
-          livenessProbe:
-            exec:
-              command:
-                - sh
-                - -c
-                - "pidof dhcpd >/dev/null 2>&1 || exit 1"
-            initialDelaySeconds: 10
-            periodSeconds: 20
-            timeoutSeconds: 3
-            failureThreshold: 3
-          resources:
-            requests:
-              cpu: 5m
-              memory: 32Mi
-            limits:
-              cpu: 200m
-              memory: 128Mi
+
+          args:
+            - /usr/sbin/dhcpd
+            - -f
+            - -d
+            - -cf
+            - /etc/dhcp/dhcpd.conf
+            - eth0
+
           volumeMounts:
-            - name: dhcpd-config
+            - name: dhcp-config
               mountPath: /etc/dhcp
-            - name: dhcpd-leases
+            - name: dhcp-leases
               mountPath: /var/lib/dhcp
+
       volumes:
-        - name: dhcpd-config
+        - name: dhcp-config
           configMap:
             name: dhcpd-config
-        - name: dhcpd-leases
+        - name: dhcp-leases
           emptyDir: {}
