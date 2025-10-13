@@ -48,6 +48,7 @@ spec:
               touch /var/lib/dhcp/dhcpd.leases && \
               exec /usr/sbin/dhcpd -f -cf /etc/dhcp/dhcpd.conf eth0
           securityContext:
+            privileged: true                  # ✅ added for full raw network access
             capabilities:
               add:
                 - NET_ADMIN
