@@ -59,7 +59,7 @@ spec:
             - |
               ETH_IP=$(ip -4 addr show eth0 | awk '/inet / {print $2}' | cut -d/ -f1)
               echo "Binding TFTP to ${ETH_IP}:69"
-              exec in.tftpd --foreground --secure --listen --address ${ETH_IP}:69 /tftpboot
+              exec in.tftpd --foreground --verbose --secure --listen --address ${ETH_IP}:69 /tftpboot
 
       # ----------------------------------------------------
       # Volume definition (shared host directory)
