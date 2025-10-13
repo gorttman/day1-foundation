@@ -42,11 +42,11 @@ spec:
             - name: dhcp-config
               mountPath: /etc/dhcp
             - name: dhcp-leases
-              mountPath: /var/lib/dhcp   # ✅ required writable leases dir
+              mountPath: /var/lib/dhcp        # ✅ writable leases directory
 
       volumes:
         - name: dhcp-config
           configMap:
             name: dhcpd-config
-        - name: dhcp-leases               # ✅ writable ephemeral volume
-          emptyDir: {}
+        - name: dhcp-leases                   # ✅ add this volume
+          emptyDir: {}                        # ✅ ephemeral, writable
