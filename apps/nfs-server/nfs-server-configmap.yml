@@ -5,5 +5,4 @@ metadata:
   namespace: infra
 data:
   exports: |
-    /srv/nfs *(rw,sync,no_subtree_check,no_root_squash,insecure)
-
+    /srv/nfs 192.168.1.0/27(rw,sync,no_subtree_check,no_root_squash,insecure,fsid=0,crossmnt)
