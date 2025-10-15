@@ -5,4 +5,4 @@ metadata:
   namespace: infra
 data:
   exports: |
-    /exports *(rw,sync,no_subtree_check,no_root_squash,insecure)
+    /srv/nfs *(rw,sync,no_subtree_check,no_root_squash,insecure)

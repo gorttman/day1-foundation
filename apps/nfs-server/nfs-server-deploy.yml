@@ -44,9 +44,11 @@ spec:
           image: gists/nfs-server:latest
           securityContext:
             privileged: true
+            capabilities:
+              add: ["SYS_ADMIN"]
           env:
             - name: SHARED_DIRECTORY
-              value: /exports
+              value: /srv/nfs
           ports:
             - containerPort: 2049
               protocol: TCP
@@ -58,9 +60,10 @@ spec:
               protocol: UDP
           volumeMounts:
             - name: nfs-data
-              mountPath: /exports
+              mountPath: /srv/nfs
+
       volumes:
         - name: nfs-data
           hostPath:
             path: /srv/nfs
-            type: DirectoryOrCreate
+            type: Directory
