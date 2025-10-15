@@ -44,11 +44,24 @@ spec:
           image: gists/nfs-server:latest
           securityContext:
             privileged: true
-            capabilities:
-              add: ["SYS_ADMIN"]
-          env:
-            - name: SHARED_DIRECTORY
-              value: /srv/nfs
+
+          # --- ✅ Entrypoint override to kill the built-in /nfs-share logic ---
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eux
+              mkdir -p /srv/nfs
+              echo "/srv/nfs *(rw,sync,no_subtree_check,no_root_squash,insecure)" > /etc/exports
+              echo "=== /etc/exports contents ==="
+              cat /etc/exports
+              exportfs -ra
+              echo "=== Exported volumes ==="
+              exportfs -v
+              echo "=== Starting rpcbind & NFS daemons ==="
+              /sbin/rpcbind
+              /usr/sbin/rpc.nfsd --no-nfs-version 2 --debug 8
+              exec /usr/sbin/rpc.mountd --foreground --debug 8
+
           ports:
             - containerPort: 2049
               protocol: TCP
@@ -58,6 +71,7 @@ spec:
               protocol: TCP
             - containerPort: 111
               protocol: UDP
+
           volumeMounts:
             - name: nfs-data
               mountPath: /srv/nfs
@@ -66,4 +80,4 @@ spec:
         - name: nfs-data
           hostPath:
             path: /srv/nfs
-            type: Directory
+            type: DirectoryOrCreate
