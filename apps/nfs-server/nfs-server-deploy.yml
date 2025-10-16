@@ -21,10 +21,7 @@ spec:
     spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
-      tolerations:
-        - key: "node-role.kubernetes.io/control-plane"
-          operator: "Exists"
-          effect: "NoSchedule"
+
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -36,34 +33,17 @@ spec:
                   - key: node-role.kubernetes.io/control-plane
                     operator: In
                     values: ["", "true"]
+
+      tolerations:
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: "Exists"
+          effect: "NoSchedule"
+
       containers:
         - name: nfs-server
           image: gists/nfs-server:latest
           securityContext:
             privileged: true
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              set -eux
-              echo "=== NFS SERVER STARTUP ==="
-
-              cat <<'EOF' >/etc/exports
-              /srv/nfs *(rw,sync,no_subtree_check,no_root_squash,insecure)
-              /srv/nfs/rpios/12.12 *(rw,sync,no_subtree_check,no_root_squash,insecure)
-              /srv/nfs/rpios/latest *(rw,sync,no_subtree_check,no_root_squash,insecure)
-              EOF
-
-              echo "=== /etc/exports contents ==="
-              cat /etc/exports
-
-              exportfs -ra
-              echo "=== Exported volumes ==="
-              exportfs -v
-
-              echo "=== Starting rpcbind & NFS daemons ==="
-              /sbin/rpcbind
-              /usr/sbin/rpc.nfsd --debug 8 4 3
-              exec /usr/sbin/rpc.mountd --foreground --debug 8
           ports:
             - containerPort: 2049
               hostPort: 2049
@@ -77,10 +57,34 @@ spec:
             - containerPort: 111
               hostPort: 111
               protocol: UDP
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eux
+              echo "=== NFS SERVER STARTUP ==="
+              echo "=== /etc/exports contents ==="
+              cat /etc/exports
+
+              exportfs -ra
+              echo "=== Exported volumes ==="
+              exportfs -v
+
+              echo "=== Starting rpcbind & NFS daemons ==="
+              /sbin/rpcbind
+              /usr/sbin/rpc.nfsd --debug 8 4 3
+              exec /usr/sbin/rpc.mountd --foreground --debug 8
+
           volumeMounts:
+            - name: nfs-exports
+              mountPath: /etc/exports
+              subPath: exports
             - name: nfs-data
               mountPath: /srv/nfs
+
       volumes:
+        - name: nfs-exports
+          configMap:
+            name: nfs-exports
         - name: nfs-data
           hostPath:
             path: /srv/nfs
