@@ -70,7 +70,7 @@ spec:
 
               echo "Starting NFS services..."
               /sbin/rpcbind
-              /usr/sbin/rpc.nfsd --no-nfs-version 2 --debug 8 4 3
+              /usr/sbin/rpc.nfsd --debug 8 4 3
               exec /usr/sbin/rpc.mountd --foreground --debug 8
 
           volumeMounts:
