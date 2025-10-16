@@ -47,9 +47,6 @@ spec:
               set -eux
               echo "=== NFS SERVER STARTUP ==="
 
-              mkdir -p /srv/nfs/rpios/12.12
-              ln -sfn /srv/nfs/rpios/12.12 /srv/nfs/rpios/latest
-
               cat <<'EOF' >/etc/exports
               /srv/nfs *(rw,sync,no_subtree_check,no_root_squash,insecure)
               /srv/nfs/rpios/12.12 *(rw,sync,no_subtree_check,no_root_squash,insecure)
