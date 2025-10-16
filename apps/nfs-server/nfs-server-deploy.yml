@@ -21,7 +21,6 @@ spec:
     spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
-
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -33,7 +32,6 @@ spec:
                   - key: node-role.kubernetes.io/control-plane
                     operator: In
                     values: ["", "true"]
-
       tolerations:
         - key: "node-role.kubernetes.io/control-plane"
           operator: "Exists"
@@ -59,13 +57,15 @@ spec:
               hostPort: 111
               protocol: UDP
 
-          # Simplified startup Ñno duplicate exportfs
           command: ["/bin/sh", "-c"]
           args:
             - |
               set -eux
               echo "=== NFS SERVER STARTUP ==="
-              echo "Contents of /etc/exports:"
+              echo "Applying exports config..."
+              cp /config/exports /etc/exports
+
+              echo "=== /etc/exports contents ==="
               cat /etc/exports
 
               echo "Starting NFS services..."
@@ -74,15 +74,18 @@ spec:
               exec /usr/sbin/rpc.mountd --foreground --debug 8
 
           volumeMounts:
-            - name: nfs-exports
-              mountPath: /etc/exports
+            - name: nfs-config
+              mountPath: /config
             - name: nfs-data
               mountPath: /srv/nfs
 
       volumes:
-        - name: nfs-exports
+        - name: nfs-config
           configMap:
             name: nfs-exports
+            items:
+              - key: exports
+                path: exports
         - name: nfs-data
           hostPath:
             path: /srv/nfs
