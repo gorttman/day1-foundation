@@ -6,5 +6,4 @@ metadata:
 data:
   exports: |
     /srv/nfs *(rw,sync,no_subtree_check,no_root_squash,insecure)
-    /srv/nfs/rpios/12.12 *(rw,sync,no_subtree_check,no_root_squash,insecure)
     /srv/nfs/rpios/latest *(rw,sync,no_subtree_check,no_root_squash,insecure)
