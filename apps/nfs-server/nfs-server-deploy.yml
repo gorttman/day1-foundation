@@ -42,6 +42,7 @@ spec:
       containers:
         - name: nfs-server
           image: gists/nfs-server:latest
+          imagePullPolicy: Always
           securityContext:
             privileged: true
           ports:
@@ -57,27 +58,24 @@ spec:
             - containerPort: 111
               hostPort: 111
               protocol: UDP
+
+          # Simplified startup Ñno duplicate exportfs
           command: ["/bin/sh", "-c"]
           args:
             - |
               set -eux
               echo "=== NFS SERVER STARTUP ==="
-              echo "=== /etc/exports contents ==="
+              echo "Contents of /etc/exports:"
               cat /etc/exports
 
-              exportfs -ra
-              echo "=== Exported volumes ==="
-              exportfs -v
-
-              echo "=== Starting rpcbind & NFS daemons ==="
+              echo "Starting NFS services..."
               /sbin/rpcbind
-              /usr/sbin/rpc.nfsd --debug 8 4 3
+              /usr/sbin/rpc.nfsd --no-nfs-version 2 --debug 8 4 3
               exec /usr/sbin/rpc.mountd --foreground --debug 8
 
           volumeMounts:
             - name: nfs-exports
               mountPath: /etc/exports
-              subPath: exports
             - name: nfs-data
               mountPath: /srv/nfs
 
