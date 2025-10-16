@@ -21,7 +21,10 @@ spec:
     spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
-
+      tolerations:
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: "Exists"
+          effect: "NoSchedule"
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -33,40 +36,29 @@ spec:
                   - key: node-role.kubernetes.io/control-plane
                     operator: In
                     values: ["", "true"]
-
-      tolerations:
-        - key: "node-role.kubernetes.io/control-plane"
-          operator: "Exists"
-          effect: "NoSchedule"
-
       containers:
         - name: nfs-server
           image: gists/nfs-server:latest
           securityContext:
             privileged: true
-          ports:
-            - containerPort: 2049
-              protocol: TCP
-            - containerPort: 2049
-              protocol: UDP
-            - containerPort: 111
-              protocol: TCP
-            - containerPort: 111
-              protocol: UDP
-
-          # ---- ENTRYPOINT OVERRIDE ----
           command: ["/bin/sh", "-c"]
           args:
             - |
               set -eux
               echo "=== NFS SERVER STARTUP ==="
-              mkdir -p /srv/nfs
 
-              echo "/srv/nfs *(rw,sync,no_subtree_check,no_root_squash,insecure)" > /etc/exports
+              mkdir -p /srv/nfs/rpios/12.12
+              ln -sfn /srv/nfs/rpios/12.12 /srv/nfs/rpios/latest
+
+              cat <<'EOF' >/etc/exports
+              /srv/nfs *(rw,sync,no_subtree_check,no_root_squash,insecure)
+              /srv/nfs/rpios/12.12 *(rw,sync,no_subtree_check,no_root_squash,insecure)
+              /srv/nfs/rpios/latest *(rw,sync,no_subtree_check,no_root_squash,insecure)
+              EOF
+
               echo "=== /etc/exports contents ==="
               cat /etc/exports
 
-              # Export and verify
               exportfs -ra
               echo "=== Exported volumes ==="
               exportfs -v
@@ -74,15 +66,23 @@ spec:
               echo "=== Starting rpcbind & NFS daemons ==="
               /sbin/rpcbind
               /usr/sbin/rpc.nfsd --debug 8 4 3
-              echo "rpc.nfsd started OK"
-
-              # Keep container alive via rpc.mountd
               exec /usr/sbin/rpc.mountd --foreground --debug 8
-
+          ports:
+            - containerPort: 2049
+              hostPort: 2049
+              protocol: TCP
+            - containerPort: 2049
+              hostPort: 2049
+              protocol: UDP
+            - containerPort: 111
+              hostPort: 111
+              protocol: TCP
+            - containerPort: 111
+              hostPort: 111
+              protocol: UDP
           volumeMounts:
             - name: nfs-data
               mountPath: /srv/nfs
-
       volumes:
         - name: nfs-data
           hostPath:
