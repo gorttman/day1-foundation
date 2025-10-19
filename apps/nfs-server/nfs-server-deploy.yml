@@ -27,38 +27,28 @@ spec:
           securityContext:
             privileged: true
           ports:
-            - containerPort: 2049
-              name: nfs
-            - containerPort: 111
-              name: rpcbind
+            - name: rpcbind
+              containerPort: 111
+            - name: nfs
+              containerPort: 2049
           volumeMounts:
             - name: nfs-data
               mountPath: /srv/nfs
-            - name: nfsd
-              mountPath: /proc/fs/nfsd
-          env:
-            # These are optional, but useful for visibility
-            - name: TZ
-              value: "Australia/Melbourne"
           args:
-            # Launch sequence ensures exports applied, rpcbind & NFS started
             - /bin/sh
             - -c
             - |
               echo "=== NFS SERVER STARTUP ==="
+              echo "=== /etc/exports contents ==="
               cat /etc/exports
               exportfs -ra
               echo "=== Active Exports ==="
               exportfs -v
-              rpcbind
-              rpc.nfsd 8
-              exec rpc.mountd --foreground
+              /sbin/rpcbind
+              /usr/sbin/rpc.nfsd 8
+              exec /usr/sbin/rpc.mountd --foreground
       volumes:
         - name: nfs-data
           hostPath:
             path: /srv/nfs
             type: DirectoryOrCreate
-        - name: nfsd
-          hostPath:
-            path: /proc/fs/nfsd
-            type: Directory
