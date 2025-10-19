@@ -65,7 +65,7 @@ spec:
 
               echo "=== Starting rpcbind & NFS daemons ==="
               /sbin/rpcbind
-              /usr/sbin/rpc.nfsd --debug 8 4 3
+              /usr/sbin/rpc.nfsd
               echo "rpc.nfsd started OK"
 
               # Keep container alive via rpc.mountd
