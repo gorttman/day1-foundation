@@ -8,5 +8,5 @@ metadata:
     app.kubernetes.io/part-of: day1-foundation
 data:
   exports: |
-    /srv/nfs/rpios/12.12 192.168.1.0/27(ro,sync,no_subtree_check,insecure)
+    /srv/nfs/rpios/12.12 192.168.1.0/27(rw,sync,no_subtree_check,insecure,no_root_squash)
     /srv/nfs/cluster 192.168.1.0/27(rw,sync,no_subtree_check,no_root_squash,insecure)
