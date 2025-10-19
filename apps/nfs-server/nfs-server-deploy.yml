@@ -42,6 +42,7 @@ spec:
       containers:
         - name: nfs-server
           image: gists/nfs-server:latest
+          imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
           ports:
@@ -54,29 +55,36 @@ spec:
             - containerPort: 111
               protocol: UDP
 
-          # ---- ENTRYPOINT OVERRIDE ----
           command: ["/bin/sh", "-c"]
           args:
             - |
               set -eux
+              echo "=== Using /etc/exports from ConfigMap ==="
+              cat /etc/exports || true
               exportfs -ra
               echo "=== Exported volumes ==="
               exportfs -v
-
               echo "=== Starting rpcbind & NFS daemons ==="
               /sbin/rpcbind
               /usr/sbin/rpc.nfsd
               echo "rpc.nfsd started OK"
-
-              # Keep container alive via rpc.mountd
-              exec /usr/sbin/rpc.mountd  --foreground
+              exec /usr/sbin/rpc.mountd --foreground
 
           volumeMounts:
             - name: nfs-data
               mountPath: /srv/nfs
+            - name: exports
+              mountPath: /etc/exports
+              subPath: exports
 
       volumes:
         - name: nfs-data
           hostPath:
             path: /srv/nfs
             type: DirectoryOrCreate
+        - name: exports
+          configMap:
+            name: nfs-exports
+            items:
+              - key: exports
+                path: exports
