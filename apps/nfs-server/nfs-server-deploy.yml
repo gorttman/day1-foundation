@@ -5,9 +5,6 @@ metadata:
   namespace: infra
   labels:
     app.kubernetes.io/name: nfs-server
-    app.kubernetes.io/part-of: day1-foundation
-  annotations:
-    argocd.argoproj.io/sync-wave: "6"
 spec:
   replicas: 1
   selector:
@@ -17,68 +14,51 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: nfs-server
-        app.kubernetes.io/part-of: day1-foundation
     spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
-
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: kubernetes.io/arch
-                    operator: In
-                    values: ["arm64"]
-                  - key: node-role.kubernetes.io/control-plane
-                    operator: In
-                    values: ["", "true"]
-
-      tolerations:
-        - key: "node-role.kubernetes.io/control-plane"
-          operator: "Exists"
-          effect: "NoSchedule"
-
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
       containers:
         - name: nfs-server
           image: gists/nfs-server:latest
+          imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
           ports:
             - containerPort: 2049
-              protocol: TCP
-            - containerPort: 2049
-              protocol: UDP
+              name: nfs
             - containerPort: 111
-              protocol: TCP
-            - containerPort: 111
-              protocol: UDP
-          command:
+              name: rpcbind
+          volumeMounts:
+            - name: nfs-data
+              mountPath: /srv/nfs
+            - name: nfsd
+              mountPath: /proc/fs/nfsd
+          env:
+            # These are optional, but useful for visibility
+            - name: TZ
+              value: "Australia/Melbourne"
+          args:
+            # Launch sequence ensures exports applied, rpcbind & NFS started
             - /bin/sh
             - -c
             - |
-              set -eux
               echo "=== NFS SERVER STARTUP ==="
-              echo "=== /etc/exports contents ==="
               cat /etc/exports
               exportfs -ra
               echo "=== Active Exports ==="
               exportfs -v
-              /sbin/rpcbind
-              /usr/sbin/rpc.nfsd --debug 8 4 3
-              exec /usr/sbin/rpc.mountd --foreground --debug 8
-          volumeMounts:
-            - name: nfs-data
-              mountPath: /srv/nfs
-            - name: nfs-exports
-              mountPath: /etc/exports
-              subPath: exports
-
+              rpcbind
+              rpc.nfsd 8
+              exec rpc.mountd --foreground
       volumes:
         - name: nfs-data
           hostPath:
             path: /srv/nfs
             type: DirectoryOrCreate
-        - name: nfs-exports
-          configMap:
-            name: nfs-exports
+        - name: nfsd
+          hostPath:
+            path: /proc/fs/nfsd
+            type: Directory
