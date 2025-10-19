@@ -5,6 +5,9 @@ metadata:
   namespace: infra
   labels:
     app.kubernetes.io/name: nfs-server
+    app.kubernetes.io/part-of: day1-foundation
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
 spec:
   replicas: 1
   selector:
@@ -14,37 +17,75 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: nfs-server
+        app.kubernetes.io/part-of: day1-foundation
     spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: ["arm64"]
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: In
+                    values: ["", "true"]
+      tolerations:
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: "Exists"
+          effect: "NoSchedule"
+
       containers:
         - name: nfs-server
           image: gists/nfs-server:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             privileged: true
           ports:
-            - name: rpcbind
-              containerPort: 111
-            - name: nfs
-              containerPort: 2049
-          volumeMounts:
-            - name: nfs-data
-              mountPath: /srv/nfs
+            - containerPort: 2049
+              hostPort: 2049
+              protocol: TCP
+            - containerPort: 2049
+              hostPort: 2049
+              protocol: UDP
+            - containerPort: 111
+              hostPort: 111
+              protocol: TCP
+            - containerPort: 111
+              hostPort: 111
+              protocol: UDP
+
+          command: ["/bin/sh", "-c"]
           args:
-            - /bin/sh
-            - -c
             - |
+              set -eux
               echo "=== NFS SERVER STARTUP ==="
+              echo "Applying exports config..."
+              cp /config/exports /etc/exports
+
               echo "=== /etc/exports contents ==="
               cat /etc/exports
-              exportfs -ra
-              echo "=== Active Exports ==="
-              exportfs -v
+
+              echo "Starting NFS services..."
               /sbin/rpcbind
-              /usr/sbin/rpc.nfsd 8
-              exec /usr/sbin/rpc.mountd --foreground
+              /usr/sbin/rpc.nfsd --debug 8 4 3
+              exec /usr/sbin/rpc.mountd --foreground --debug 8
+
+          volumeMounts:
+            - name: nfs-config
+              mountPath: /config
+            - name: nfs-data
+              mountPath: /srv/nfs
+
       volumes:
+        - name: nfs-config
+          configMap:
+            name: nfs-exports
+            items:
+              - key: exports
+                path: exports
         - name: nfs-data
           hostPath:
             path: /srv/nfs
