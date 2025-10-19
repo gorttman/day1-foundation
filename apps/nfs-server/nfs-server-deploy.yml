@@ -69,7 +69,7 @@ spec:
               echo "rpc.nfsd started OK"
 
               # Keep container alive via rpc.mountd
-              exec /usr/sbin/rpc.mountd 
+              exec /usr/sbin/rpc.mountd  --foreground
 
           volumeMounts:
             - name: nfs-data
