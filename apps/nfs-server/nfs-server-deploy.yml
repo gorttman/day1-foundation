@@ -76,7 +76,8 @@ spec:
             - name: exports
               mountPath: /etc/exports
               subPath: exports
-
+            - name: nfsd
+              mountPath: /proc/fs/nfsd
       volumes:
         - name: nfs-data
           hostPath:
@@ -88,3 +89,29 @@ spec:
             items:
               - key: exports
                 path: exports
+        - name: nfsd
+          hostPath:
+            path: /proc/fs/nfsd
+
+          volumeMounts:
+            - name: nfs-data
+              mountPath: /srv/nfs
+            - name: exports
+              mountPath: /etc/exports
+              subPath: exports
+            - name: nfsd
+              mountPath: /proc/fs/nfsd
+      volumes:
+        - name: nfs-data
+          hostPath:
+            path: /srv/nfs
+            type: DirectoryOrCreate
+        - name: exports
+          configMap:
+            name: nfs-exports
+            items:
+              - key: exports
+                path: exports
+        - name: nfsd
+          hostPath:
+            path: /proc/fs/nfsd
