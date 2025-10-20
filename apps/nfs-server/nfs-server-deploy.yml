@@ -20,24 +20,11 @@ spec:
         app.kubernetes.io/part-of: day1-foundation
     spec:
       hostNetwork: true
+      hostPID: true
       dnsPolicy: ClusterFirstWithHostNet
-
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: kubernetes.io/arch
-                    operator: In
-                    values: ["arm64"]
-                  - key: node-role.kubernetes.io/control-plane
-                    operator: In
-                    values: ["", "true"]
-
-      tolerations:
-        - key: "node-role.kubernetes.io/control-plane"
-          operator: "Exists"
-          effect: "NoSchedule"
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
 
       containers:
         - name: nfs-server
@@ -61,16 +48,20 @@ spec:
               set -eux
               echo "=== Using /etc/exports from ConfigMap ==="
               cat /etc/exports || true
-              exportfs -ra
-              echo "=== Exported volumes ==="
-              exportfs -v
-              echo "=== Starting rpcbind & NFS daemons ==="
+
+              echo "=== Starting rpcbind ==="
               /sbin/rpcbind
-              # Use real kernel interface (mounted under /host-proc)
-              mount --bind /host-proc/fs/nfsd /proc/fs/nfsd
+
+              echo "=== Starting kernel NFS threads ==="
               /usr/sbin/rpc.nfsd 8
               echo "rpc.nfsd started OK"
-              exec /usr/sbin/rpc.mountd --foreground
+
+              echo "=== Applying exports ==="
+              exportfs -ra
+              exportfs -v
+
+              echo "=== Launching rpc.mountd (foreground) ==="
+              exec /usr/sbin/rpc.mountd --foreground --manage-gids --no-nfs-version 2
 
           volumeMounts:
             - name: nfs-data
@@ -79,7 +70,7 @@ spec:
               mountPath: /etc/exports
               subPath: exports
             - name: nfsd
-              mountPath: /host-proc/fs/nfsd
+              mountPath: /proc/fs/nfsd
 
       volumes:
         - name: nfs-data
