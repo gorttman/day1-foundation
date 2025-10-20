@@ -8,18 +8,21 @@ metadata:
     app.kubernetes.io/part-of: day1-foundation
   annotations:
     argocd.argoproj.io/sync-wave: "6"
+
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: nfs-server
+
   template:
     metadata:
       labels:
         app.kubernetes.io/name: nfs-server
         app.kubernetes.io/part-of: day1-foundation
+
     spec:
-      # ?? Force NFS pod to use host network and hostname
+      # ? Must be here Ñthis forces LAN binding
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
 
