@@ -8,28 +8,19 @@ metadata:
     app.kubernetes.io/part-of: day1-foundation
   annotations:
     argocd.argoproj.io/sync-wave: "6"
-
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: nfs-server
-
   template:
     metadata:
       labels:
         app.kubernetes.io/name: nfs-server
         app.kubernetes.io/part-of: day1-foundation
-
     spec:
-      # ? Must be here Ñthis forces LAN binding
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
-
-      tolerations:
-        - key: "node-role.kubernetes.io/control-plane"
-          operator: "Exists"
-          effect: "NoSchedule"
 
       affinity:
         nodeAffinity:
@@ -43,10 +34,14 @@ spec:
                     operator: In
                     values: ["", "true"]
 
+      tolerations:
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: "Exists"
+          effect: "NoSchedule"
+
       containers:
         - name: nfs-server
           image: gists/nfs-server:latest
-          imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
           ports:
@@ -58,36 +53,38 @@ spec:
               protocol: TCP
             - containerPort: 111
               protocol: UDP
+
+          # ---- ENTRYPOINT OVERRIDE ----
           command: ["/bin/sh", "-c"]
           args:
             - |
               set -eux
-              echo "=== Using /etc/exports from ConfigMap ==="
-              cat /etc/exports || true
+              echo "=== NFS SERVER STARTUP ==="
+              mkdir -p /srv/nfs
+
+              echo "/srv/nfs *(rw,sync,no_subtree_check,no_root_squash,insecure)" > /etc/exports
+              echo "=== /etc/exports contents ==="
+              cat /etc/exports
+
+              # Export and verify
               exportfs -ra
               echo "=== Exported volumes ==="
               exportfs -v
+
               echo "=== Starting rpcbind & NFS daemons ==="
               /sbin/rpcbind
-              /usr/sbin/rpc.nfsd 8
+              /usr/sbin/rpc.nfsd --debug 8 4 3
               echo "rpc.nfsd started OK"
-              exec /usr/sbin/rpc.mountd --foreground --manage-gids
+
+              # Keep container alive via rpc.mountd
+              exec /usr/sbin/rpc.mountd --foreground --debug 8
 
           volumeMounts:
             - name: nfs-data
               mountPath: /srv/nfs
-            - name: exports
-              mountPath: /etc/exports
-              subPath: exports
 
       volumes:
         - name: nfs-data
           hostPath:
             path: /srv/nfs
             type: DirectoryOrCreate
-        - name: exports
-          configMap:
-            name: nfs-exports
-            items:
-              - key: exports
-                path: exports

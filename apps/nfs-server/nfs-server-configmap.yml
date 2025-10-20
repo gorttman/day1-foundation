@@ -3,10 +3,11 @@ kind: ConfigMap
 metadata:
   name: nfs-exports
   namespace: infra
-  labels:
-    app.kubernetes.io/name: nfs-server
-    app.kubernetes.io/part-of: day1-foundation
 data:
   exports: |
-    /srv/nfs/rpios/12.12 192.168.1.0/27(rw,sync,no_subtree_check,insecure,no_root_squash,fsid=1)
-    /srv/nfs/cluster      192.168.1.0/27(rw,sync,no_subtree_check,insecure,no_root_squash,fsid=2)
+    # Base export for all NFS clients
+    /srv/nfs *(rw,sync,no_subtree_check,no_root_squash,insecure)
+
+    # Optional versioned subdirs
+    /srv/nfs/rpios/12.12 *(rw,sync,no_subtree_check,no_root_squash,insecure)
+    /srv/nfs/rpios/latest *(rw,sync,no_subtree_check,no_root_squash,insecure)
