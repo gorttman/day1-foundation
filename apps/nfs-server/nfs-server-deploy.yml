@@ -49,6 +49,10 @@ spec:
               echo "=== Using /etc/exports from ConfigMap ==="
               cat /etc/exports || true
 
+              echo "=== Preparing kernel NFS interface ==="
+              mkdir -p /proc/fs
+              mount --bind /kernel_nfsd /proc/fs/nfsd
+
               echo "=== Starting rpcbind ==="
               /sbin/rpcbind
 
@@ -69,8 +73,8 @@ spec:
             - name: exports
               mountPath: /etc/exports
               subPath: exports
-            - name: nfsd
-              mountPath: /proc/fs/nfsd
+            - name: kernel-nfsd
+              mountPath: /kernel_nfsd
 
       volumes:
         - name: nfs-data
@@ -83,6 +87,6 @@ spec:
             items:
               - key: exports
                 path: exports
-        - name: nfsd
+        - name: kernel-nfsd
           hostPath:
             path: /proc/fs/nfsd
