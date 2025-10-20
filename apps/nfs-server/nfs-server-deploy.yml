@@ -19,12 +19,26 @@ spec:
         app.kubernetes.io/name: nfs-server
         app.kubernetes.io/part-of: day1-foundation
     spec:
+      # ?? Force NFS pod to use host network and hostname
       hostNetwork: true
-      hostPID: true
       dnsPolicy: ClusterFirstWithHostNet
-      securityContext:
-        runAsUser: 0
-        runAsGroup: 0
+
+      tolerations:
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: "Exists"
+          effect: "NoSchedule"
+
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: ["arm64"]
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: In
+                    values: ["", "true"]
 
       containers:
         - name: nfs-server
@@ -41,31 +55,20 @@ spec:
               protocol: TCP
             - containerPort: 111
               protocol: UDP
-
           command: ["/bin/sh", "-c"]
           args:
             - |
               set -eux
               echo "=== Using /etc/exports from ConfigMap ==="
               cat /etc/exports || true
-
-              echo "=== Preparing kernel NFS interface ==="
-              mkdir -p /proc/fs
-              mount --bind /kernel_nfsd /proc/fs/nfsd
-
-              echo "=== Starting rpcbind ==="
+              exportfs -ra
+              echo "=== Exported volumes ==="
+              exportfs -v
+              echo "=== Starting rpcbind & NFS daemons ==="
               /sbin/rpcbind
-
-              echo "=== Starting kernel NFS threads ==="
               /usr/sbin/rpc.nfsd 8
               echo "rpc.nfsd started OK"
-
-              echo "=== Applying exports ==="
-              exportfs -ra
-              exportfs -v
-
-              echo "=== Launching rpc.mountd (foreground) ==="
-              exec /usr/sbin/rpc.mountd --foreground --manage-gids --no-nfs-version 2
+              exec /usr/sbin/rpc.mountd --foreground --manage-gids
 
           volumeMounts:
             - name: nfs-data
@@ -73,8 +76,6 @@ spec:
             - name: exports
               mountPath: /etc/exports
               subPath: exports
-            - name: kernel-nfsd
-              mountPath: /kernel_nfsd
 
       volumes:
         - name: nfs-data
@@ -87,6 +88,3 @@ spec:
             items:
               - key: exports
                 path: exports
-        - name: kernel-nfsd
-          hostPath:
-            path: /proc/fs/nfsd
