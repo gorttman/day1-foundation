@@ -66,8 +66,9 @@ spec:
               exportfs -v
               echo "=== Starting rpcbind & NFS daemons ==="
               /sbin/rpcbind
-              # Use the safe /nfsd mount path instead of /proc/fs/nfsd
-              /usr/sbin/rpc.nfsd --fsid-root /nfsd 8 --host 0.0.0.0
+              # Use real kernel interface (mounted under /host-proc)
+              mount --bind /host-proc/fs/nfsd /proc/fs/nfsd
+              /usr/sbin/rpc.nfsd 8
               echo "rpc.nfsd started OK"
               exec /usr/sbin/rpc.mountd --foreground
 
@@ -78,7 +79,7 @@ spec:
               mountPath: /etc/exports
               subPath: exports
             - name: nfsd
-              mountPath: /nfsd
+              mountPath: /host-proc/fs/nfsd
 
       volumes:
         - name: nfs-data
