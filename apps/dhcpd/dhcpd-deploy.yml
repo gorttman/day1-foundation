@@ -42,13 +42,11 @@ spec:
           args:
             - -c
             - |
-              # Disable wlan0 so dhcpd cannot bind to it
-              ip link set wlan0 down || true
               mkdir -p /var/lib/dhcp && \
               touch /var/lib/dhcp/dhcpd.leases && \
               exec /usr/sbin/dhcpd -f -cf /etc/dhcp/dhcpd.conf eth0
           securityContext:
-            privileged: true                  # ✅ added for full raw network access
+            privileged: true
             capabilities:
               add:
                 - NET_ADMIN
