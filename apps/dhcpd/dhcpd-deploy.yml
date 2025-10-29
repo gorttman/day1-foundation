@@ -83,7 +83,8 @@ spec:
               memory: 128Mi
           volumeMounts:
             - name: dhcpd-config
-              mountPath: /etc/dhcp
+              mountPath: /etc/dhcp/dhcpd.conf
+              subPath: dhcpd.conf
             - name: dhcpd-leases
               mountPath: /var/lib/dhcp
       volumes:
