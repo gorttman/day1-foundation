@@ -6,4 +6,4 @@ resources:
   - portainer-namespace.yml
   - portainer-rbac.yml
   - portainer-deployment.yml
-  - portainer-service.ym
+  - portainer-service.yml
