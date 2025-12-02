@@ -1,0 +1,8 @@
+# apps/portainer/kustomization.yml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - portainer-rbac.yml
+  - portainer-deployment.yml
+  - portainer-service.ym
