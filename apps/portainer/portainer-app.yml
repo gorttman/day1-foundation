@@ -11,7 +11,7 @@ spec:
     server: https://kubernetes.default.svc
     namespace: portainer
   source:
-    repoURL: https://github.com/gorttman/day0-bootstrap.git
+    repoURL: https://github.com/gorttman/day1-foundation.git
     targetRevision: main
     path: apps/portainer
   syncPolicy:
