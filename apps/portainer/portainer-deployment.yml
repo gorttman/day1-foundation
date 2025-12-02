@@ -31,8 +31,6 @@ spec:
         app: portainer
     spec:
       serviceAccountName: portainer-sa
-      nodeSelector:
-        lane: infrastructure
       containers:
       - name: portainer
         image: portainer/portainer-ce:2.21.4
