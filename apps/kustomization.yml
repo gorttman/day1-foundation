@@ -6,5 +6,4 @@ resources:
   - dhcpd/dhcpd-app.yml
   - pxe-http/pxe-http-app.yml
   - coredns/coredns-app.yml
-  - portainer/portainer-namespace.yml
   - portainer/portainer-app.yml
