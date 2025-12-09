@@ -3,6 +3,10 @@ kind: Application
 metadata:
   name: nfs-provisioner
   namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: day1-foundation
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   project: default
   source:
@@ -16,6 +20,4 @@ spec:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
 
