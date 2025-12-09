@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: syslog-ng
+  namespace: logging
+spec:
+  type: ClusterIP
+  ports:
+  - port: 6514
+    targetPort: 6514
+    protocol: TCP
+    name: tcp
+  - port: 5514
+    targetPort: 5514
+    protocol: UDP
+    name: udp
+  selector:
+    app: syslog-ng
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: syslog-ng-external
+  namespace: logging
+spec:
+  type: NodePort
+  ports:
+  - port: 6514
+    targetPort: 6514
+    nodePort: 30514
+    protocol: TCP
+    name: tcp
+  - port: 5514
+    targetPort: 5514
+    nodePort: 30515
+    protocol: UDP
+    name: udp
+  selector:
+    app: syslog-ng
+

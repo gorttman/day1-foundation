@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: syslog-ng
+  namespace: logging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: syslog-ng
+  template:
+    metadata:
+      labels:
+        app: syslog-ng
+    spec:
+      containers:
+      - name: syslog-ng
+        image: balabit/syslog-ng:latest
+        ports:
+        - containerPort: 6514
+          name: tcp
+          protocol: TCP
+        - containerPort: 5514
+          name: udp
+          protocol: UDP
+        volumeMounts:
+        - name: config
+          mountPath: /etc/syslog-ng/syslog-ng.conf
+          subPath: syslog-ng.conf
+        - name: logs
+          mountPath: /var/log/remote
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+      volumes:
+      - name: config
+        configMap:
+          name: syslog-ng-config
+      - name: logs
+        persistentVolumeClaim:
+          claimName: syslog-storage
+

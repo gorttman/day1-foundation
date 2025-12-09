@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: syslog-ng-config
+  namespace: logging
+data:
+  syslog-ng.conf: |
+    @version: 4.2
+    @include "scl.conf"
+    
+    source s_network_tcp {
+        syslog(
+            transport("tcp")
+            port(6514)
+            flags(no-parse)
+        );
+    };
+    
+    source s_network_udp {
+        syslog(
+            transport("udp")
+            port(5514)
+            flags(no-parse)
+        );
+    };
+    
+    destination d_files {
+        file("/var/log/remote/${HOST}/${YEAR}-${MONTH}-${DAY}.log"
+            create-dirs(yes)
+            dir-perm(0755)
+            perm(0644)
+        );
+    };
+    
+    destination d_consolidated {
+        file("/var/log/remote/all.log"
+            template("${ISODATE} ${HOST} ${MSGHDR}${MSG}\n")
+        );
+    };
+    
+    log {
+        source(s_network_tcp);
+        source(s_network_udp);
+        destination(d_files);
+        destination(d_consolidated);
+    };
+
