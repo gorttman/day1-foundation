@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: log-archive-scripts
+  name: log-archiver-configmap
   namespace: logging
 data:
   archive-logs.sh: |

@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: syslog-ng-config
+  name: syslog-server-configmap
   namespace: logging
 data:
   syslog-ng.conf: |

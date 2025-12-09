@@ -7,3 +7,4 @@ parameters:
   archiveOnDelete: "true"
 reclaimPolicy: Retain
 volumeBindingMode: Immediate
+

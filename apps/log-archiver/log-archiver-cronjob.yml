@@ -59,3 +59,4 @@ spec:
           - name: logs
             persistentVolumeClaim:
               claimName: syslog-storage
+
