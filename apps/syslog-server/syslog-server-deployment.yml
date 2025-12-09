@@ -39,7 +39,7 @@ spec:
       volumes:
       - name: config
         configMap:
-          name: syslog-ng-config
+          name: syslog-server-configmap
       - name: logs
         persistentVolumeClaim:
           claimName: syslog-storage
