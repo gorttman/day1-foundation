@@ -12,7 +12,7 @@ spec:
   project: default
   
   source:
-    repoURL: https://github.com/gorttman/day1-foundational.git
+    repoURL: https://github.com/gorttman/day1-foundation.git
     targetRevision: main
     path: apps/influxdb
   
