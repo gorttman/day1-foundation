@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: influxdb-config
+  namespace: monitoring
+  labels:
+    app: influxdb
+    app.kubernetes.io/name: influxdb
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: observability
+    argocd.argoproj.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+data:
+  # InfluxDB 2.x environment configuration
+  INFLUXD_HTTP_BIND_ADDRESS: ":8086"
+  INFLUXD_REPORTING_DISABLED: "true"
+  # Initial setup parameters (used only on first run)
+  DOCKER_INFLUXDB_INIT_MODE: "setup"
+  DOCKER_INFLUXDB_INIT_USERNAME: "admin"
+  DOCKER_INFLUXDB_INIT_ORG: "pilab"
+  DOCKER_INFLUXDB_INIT_BUCKET: "telegraf"
+  DOCKER_INFLUXDB_INIT_RETENTION: "90d"  # 90 day retention

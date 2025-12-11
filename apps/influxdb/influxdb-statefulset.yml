@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: influxdb
+  namespace: monitoring
+  labels:
+    app: influxdb
+    app.kubernetes.io/name: influxdb
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: observability
+    argocd.argoproj.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  serviceName: influxdb
+  replicas: 1
+  selector:
+    matchLabels:
+      app: influxdb
+  template:
+    metadata:
+      labels:
+        app: influxdb
+        app.kubernetes.io/name: influxdb
+        app.kubernetes.io/component: database
+        app.kubernetes.io/part-of: observability
+    spec:
+      # Target Pi-1 (manager node with lane=infrastructure)
+      nodeSelector:
+        lane: infrastructure
+      containers:
+      - name: influxdb
+        image: influxdb:2.7-alpine  # Latest stable 2.x, alpine for smaller image
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8086
+          protocol: TCP
+        env:
+        # Load config from ConfigMap
+        - name: INFLUXD_HTTP_BIND_ADDRESS
+          valueFrom:
+            configMapKeyRef:
+              name: influxdb-config
+              key: INFLUXD_HTTP_BIND_ADDRESS
+        - name: INFLUXD_REPORTING_DISABLED
+          valueFrom:
+            configMapKeyRef:
+              name: influxdb-config
+              key: INFLUXD_REPORTING_DISABLED
+        - name: DOCKER_INFLUXDB_INIT_MODE
+          valueFrom:
+            configMapKeyRef:
+              name: influxdb-config
+              key: DOCKER_INFLUXDB_INIT_MODE
+        - name: DOCKER_INFLUXDB_INIT_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: influxdb-config
+              key: DOCKER_INFLUXDB_INIT_USERNAME
+        - name: DOCKER_INFLUXDB_INIT_ORG
+          valueFrom:
+            configMapKeyRef:
+              name: influxdb-config
+              key: DOCKER_INFLUXDB_INIT_ORG
+        - name: DOCKER_INFLUXDB_INIT_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: influxdb-config
+              key: DOCKER_INFLUXDB_INIT_BUCKET
+        - name: DOCKER_INFLUXDB_INIT_RETENTION
+          valueFrom:
+            configMapKeyRef:
+              name: influxdb-config
+              key: DOCKER_INFLUXDB_INIT_RETENTION
+        # Load secrets from Secret
+        - name: DOCKER_INFLUXDB_INIT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: influxdb-auth
+              key: admin-password
+        - name: DOCKER_INFLUXDB_INIT_ADMIN_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: influxdb-auth
+              key: admin-token
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/influxdb2
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8086
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8086
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: influxdb-data
+
