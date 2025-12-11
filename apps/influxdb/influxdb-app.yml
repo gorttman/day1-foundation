@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: influxdb
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: influxdb
+    app.kubernetes.io/part-of: observability
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"  # Deploy after core infrastructure
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/gorttman/day1-foundational.git
+    targetRevision: main
+    path: apps/influxdb
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  
+  syncPolicy:
+    automated:
+      prune: true      # Remove resources when removed from git
+      selfHeal: true   # Sync when resources are modified
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  # Health assessment
+  ignoreDifferences: []
+  
+  revisionHistoryLimit: 3
+
