@@ -10,5 +10,6 @@ resources:
   - nfs-provisioner/nfs-provisioner-app.yml
   - syslog-server/syslog-server-app.yml
   - log-archiver/log-archiver-app.yml
-  - influxdb/influxdb-app.yml
+  # - influxdb/influxdb-app.yml
+   - pihole/pihole-app.yml
 
