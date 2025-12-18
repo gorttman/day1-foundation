@@ -11,5 +11,4 @@ resources:
   - syslog-server/syslog-server-app.yml
   - log-archiver/log-archiver-app.yml
   # - influxdb/influxdb-app.yml
-  - pihole/pihole-app.yml
 
