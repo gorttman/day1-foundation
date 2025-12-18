@@ -1,0 +1,137 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pihole
+  namespace: pihole
+  labels:
+    app: pihole
+    app.kubernetes.io/name: pihole
+    app.kubernetes.io/component: dns
+    app.kubernetes.io/part-of: day2-services
+    argocd.argoproj.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # Only one instance should run at a time
+  selector:
+    matchLabels:
+      app: pihole
+  template:
+    metadata:
+      labels:
+        app: pihole
+        app.kubernetes.io/name: pihole
+        app.kubernetes.io/component: dns
+    spec:
+      # Target application nodes
+      nodeSelector:
+        lane: applications
+      
+      # Use host network for direct DNS access
+      hostNetwork: true
+      dnsPolicy: None  # Don't use cluster DNS (would be circular!)
+      dnsConfig:
+        nameservers:
+          - 1.1.1.1  # Bootstrap DNS
+          - 1.0.0.1
+      
+      containers:
+      - name: pihole
+        image: pihole/pihole:2024.07.0
+        imagePullPolicy: IfNotPresent
+        
+        securityContext:
+          capabilities:
+            add:
+              - NET_ADMIN  # Required for DNS operations
+        
+        ports:
+        - name: dns-tcp
+          containerPort: 53
+          protocol: TCP
+        - name: dns-udp
+          containerPort: 53
+          protocol: UDP
+        - name: dhcp
+          containerPort: 67
+          protocol: UDP
+        - name: web
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        
+        env:
+        - name: TZ
+          valueFrom:
+            configMapKeyRef:
+              name: pihole-config
+              key: TZ
+        - name: WEBPASSWORD
+          valueFrom:
+            configMapKeyRef:
+              name: pihole-config
+              key: WEBPASSWORD
+        - name: PIHOLE_DNS_
+          valueFrom:
+            configMapKeyRef:
+              name: pihole-config
+              key: PIHOLE_DNS_
+        - name: DNSSEC
+          valueFrom:
+            configMapKeyRef:
+              name: pihole-config
+              key: DNSSEC
+        - name: DNSMASQ_LISTENING
+          valueFrom:
+            configMapKeyRef:
+              name: pihole-config
+              key: DNSMASQ_LISTENING
+        - name: FTLCONF_LOCAL_IPV4
+          valueFrom:
+            configMapKeyRef:
+              name: pihole-config
+              key: FTLCONF_LOCAL_IPV4
+        
+        volumeMounts:
+        - name: pihole-data
+          mountPath: /etc/pihole
+          subPath: pihole
+        - name: pihole-data
+          mountPath: /etc/dnsmasq.d
+          subPath: dnsmasq.d
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        
+        livenessProbe:
+          httpGet:
+            path: /admin/
+            port: 80
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /admin/
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      
+      volumes:
+      - name: pihole-data
+        persistentVolumeClaim:
+          claimName: pihole-data
+
