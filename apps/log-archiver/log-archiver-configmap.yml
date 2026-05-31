@@ -31,12 +31,12 @@ data:
     
     wake_nas() {
       echo "$(date): Sending Wake-on-LAN packet to ${NAS_MAC}"
-      if command -v wakeonlan &> /dev/null; then
-        wakeonlan "${NAS_MAC}"
-      elif command -v etherwake &> /dev/null; then
+      if command -v etherwake &> /dev/null; then
         etherwake "${NAS_MAC}"
+      elif command -v wakeonlan &> /dev/null; then
+        wakeonlan "${NAS_MAC}"
       else
-        echo "WARNING: No WOL tool found"
+        echo "WARNING: No WOL tool found, NAS may need to be woken manually"
       fi
     }
     
