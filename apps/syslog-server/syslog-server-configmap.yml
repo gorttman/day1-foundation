@@ -9,7 +9,7 @@ data:
     @include "scl.conf"
     
     source s_network_tcp {
-        syslog(
+        network(
             transport("tcp")
             port(6514)
             flags(no-parse)
