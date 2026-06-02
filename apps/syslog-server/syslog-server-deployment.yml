@@ -13,6 +13,8 @@ spec:
       labels:
         app: syslog-ng
     spec:
+      nodeSelector:
+        kubernetes.io/hostname: k8smaster
       containers:
       - name: syslog-ng
         image: balabit/syslog-ng:latest
