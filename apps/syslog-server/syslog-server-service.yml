@@ -24,6 +24,7 @@ metadata:
   namespace: logging
 spec:
   type: NodePort
+  externalTrafficPolicy: Local
   ports:
   - port: 6514
     targetPort: 6514
