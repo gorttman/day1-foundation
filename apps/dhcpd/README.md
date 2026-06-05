@@ -1,28 +1,34 @@
-# Day1-Foundation – DHCPD App
+# DHCPD
 
-## Structure
-- `apps/kustomization.yml` – aggregates child apps
-- `apps/dhcpd/*` – dhcpd manifests
-- `tests/` – validation pods
+**Status:** ACTIVE
+**Version:** built-in k3s dhcpd (image managed by dhcpd-conf repo)
+**Namespace:** infra
+**Sync Wave:** 5
+**Tags:** `networking` `infra` `netboot`
 
-## Flow
-1. `day0-bootstrap` installs Argo + repo creds.
-2. `day1-foundation` App-of-Apps syncs `dhcpd`.
-3. `dhcpd` Application uses **two repos**:
-   - `day1-foundation` → manifests
-   - `dhcpd-config` → raw `dhcpd.conf`
-4. Kustomize builds a ConfigMap → mounted into the pod.
-5. If `dhcpd.conf` changes, Argo notices drift → rollout triggered.
+---
 
-## Config updates
-- Edit `dhcpd-config/dhcpd.conf`.
-- Commit/push → Argo resyncs and restarts pod with new config.
+## What it does
+ISC DHCP server for the cluster network. Hands out leases to nodes and provides PXE boot parameters (`next-server`, `filename`) for netboot nodes.
+
+## How it works
+Uses two ArgoCD sources:
+1. `day1-foundation` — Deployment, RBAC, ServiceAccount manifests
+2. `dhcpd-conf` repo — raw `dhcpd.conf` config file
+
+Kustomize builds a ConfigMap from `dhcpd.conf` which is mounted into the pod. When `dhcpd.conf` changes and is pushed to `dhcpd-conf`, ArgoCD detects drift and triggers a rollout automatically.
+
+## Config & dependencies
+- Edit `dhcpd-conf/dhcpd.conf` (separate repo) and push — ArgoCD resyncs and restarts the pod
+- Depends on `infra` namespace existing (created by infra-namespace app)
+- Works alongside `pxe-http` (wave 5) which serves the actual boot files
+
+## Access
+- DHCP: UDP 67/68 (hostNetwork — binds directly on the node)
+- One instance per broadcast domain; for multiple VLANs use `dhcrelay`
 
 ## Tests
-- Apply `tests/dhcpd-test-pod.yml`.
-- Pod should request a DHCP lease from dhcpd.
+Apply `tests/dhcpd-test-pod.yml` — the pod requests a DHCP lease from dhcpd.
 
-## Operational Notes
-- Run **one dhcpd per broadcast domain**.
-- To cover more VLANs: deploy more instances or use `dhcrelay`.
-- Security: runs with minimal capabilities, hostNetwork only.
+## Notes
+Runs with minimal capabilities and `hostNetwork` only. Do not run more than one dhcpd per broadcast domain or leases will conflict.

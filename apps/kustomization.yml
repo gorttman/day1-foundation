@@ -6,7 +6,7 @@ resources:
   - dhcpd/dhcpd-app.yml
   - pxe-http/pxe-http-app.yml
   - coredns/coredns-app.yml
-  - portainer/portainer-app.yml
+  # - portainer/portainer-app.yml  # disabled 2026-06-06 — intentional, config preserved in apps/portainer/
   - nfs-provisioner/nfs-provisioner-app.yml
   - syslog-server/syslog-server-app.yml
   - log-archiver/log-archiver-app.yml
