@@ -11,8 +11,9 @@ metadata:
     argocd.argoproj.io/managed-by: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "3"
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"  # Assumes cert-manager is configured
-    nginx.ingress.kubernetes.io/proxy-body-size: "50m"  # Allow larger payloads
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
 spec:
