@@ -1,0 +1,7 @@
+# apps/metallb/metallb-values.yml
+# Native (L2) mode only — FRR/BGP mode not needed, both nodes are on a flat
+# /24 (192.168.2.0/24) with no BGP-speaking router involved.
+
+speaker:
+  frr:
+    enabled: false

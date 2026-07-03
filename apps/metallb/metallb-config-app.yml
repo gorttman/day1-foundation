@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metallb-config
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: day1-foundation
+  annotations:
+    # Must sync after metallb (wave 5) — IPAddressPool/L2Advertisement are
+    # MetalLB CRDs and won't exist until the controller install completes.
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/gorttman/day1-foundation.git
+    targetRevision: main
+    path: apps/metallb
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: metallb-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 10
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
