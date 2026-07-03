@@ -19,14 +19,40 @@ spec:
   # that interface only, not the wired backend network.
   interfaces:
     - wlan0
-  # k8smaster's WLAN adapter (a USB dongle) doesn't reply to raw ARP
-  # requests for MetalLB-announced IPs, even though normal IP traffic on
-  # wlan0 works fine (confirmed via tcpdump: requests go out, zero replies,
-  # from both local and remote testers). pinode-01's adapter works
-  # correctly (confirmed with a real floating IP end-to-end). Until the
-  # k8smaster driver issue is root-caused, restrict L2 announcement to
-  # pinode-01 only so floating IPs actually work - trades away node
-  # failover for the WLAN pool, not general availability.
+  # NOT CURRENTLY USABLE for real client reachability - see
+  # day1-foundation apps/metallb/README.md. The WiFi AP silently drops
+  # gratuitous ARP for these IPs from both nodes (confirmed via tcpdump:
+  # requests go out, zero replies) - almost certainly anti-ARP-spoofing
+  # protection, since MetalLB's L2 mode *is* gratuitous ARP announcement
+  # by design. A node's own real/DHCP-registered IP resolves fine over
+  # the same WiFi; only claimed/floating IPs are blocked. This nodeSelector
+  # restriction to pinode-01 was an earlier (incorrect) diagnosis when this
+  # looked like a k8smaster-specific driver issue - tests "succeeding" from
+  # either node were actually kube-proxy answering locally, not real
+  # over-the-air ARP. Left in place but doesn't fix real reachability.
   nodeSelectors:
     - matchLabels:
         kubernetes.io/hostname: pinode-01
+---
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: wired-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 192.168.1.2-192.168.1.9
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: wired-l2adv
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - wired-pool
+  # Interface name differs per node: k8smaster's wired NIC is end0,
+  # pinode-01's is eth0.
+  interfaces:
+    - end0
+    - eth0
