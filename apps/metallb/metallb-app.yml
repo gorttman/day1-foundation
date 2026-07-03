@@ -33,3 +33,20 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+
+  # The chart hardcodes emptyDir: {} (no medium) for the frr-k8s DaemonSet's
+  # volumes, with no values override. On this cluster, plain emptyDir is
+  # NFS-backed and NFS doesn't reliably support the POSIX file locks FRR's
+  # watchfrr daemon needs (same root cause as the pihole SQLite NFS-locking
+  # fix) - the frr container CrashLoopBackOffs on pinode-01 (a real NFS
+  # client) with "flock: No locks available" / "Could not lock pid_file".
+  # k8smaster doesn't hit it because it's also the NFS server (local access).
+  # Volumes are patched live to medium: Memory; this stops selfHeal from
+  # reverting that patch back to the chart's plain emptyDir.
+  ignoreDifferences:
+    - group: apps
+      kind: DaemonSet
+      name: metallb-frr-k8s
+      namespace: metallb-system
+      jsonPointers:
+        - /spec/template/spec/volumes
