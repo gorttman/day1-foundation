@@ -19,3 +19,14 @@ spec:
   # that interface only, not the wired backend network.
   interfaces:
     - wlan0
+  # k8smaster's WLAN adapter (a USB dongle) doesn't reply to raw ARP
+  # requests for MetalLB-announced IPs, even though normal IP traffic on
+  # wlan0 works fine (confirmed via tcpdump: requests go out, zero replies,
+  # from both local and remote testers). pinode-01's adapter works
+  # correctly (confirmed with a real floating IP end-to-end). Until the
+  # k8smaster driver issue is root-caused, restrict L2 announcement to
+  # pinode-01 only so floating IPs actually work - trades away node
+  # failover for the WLAN pool, not general availability.
+  nodeSelectors:
+    - matchLabels:
+        kubernetes.io/hostname: pinode-01
