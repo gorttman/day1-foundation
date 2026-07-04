@@ -4,6 +4,9 @@ metadata:
   name: log-archiver
   namespace: logging
 spec:
+  # Disabled 2026-07-04 (runs were failing and hanging for 20h+); re-enable
+  # by setting suspend: false once the job itself is fixed
+  suspend: true
   schedule: "0 2 * * *"
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
