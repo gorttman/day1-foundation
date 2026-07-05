@@ -25,15 +25,37 @@ spec:
     spec:
       # workload-affinity: if Grafana ever gets a preferred home, wire in
       # the patch template from day2-services components/workload-affinity/
-      # and add it to ansible/label-nodes.yml. For now it targets the
-      # infrastructure lane like influxdb - k8smaster is also the only
-      # node whose local-path storage is real disk (pinode-01's is a 4G
-      # RAM tmpfs).
-      nodeSelector:
-        lane: infrastructure
+      # and add it to ansible/label-nodes.yml.
+      #
+      # No node pin: the data dir (SQLite) runs in a RAM emptyDir with
+      # tar backups on nfs-client (pihole/kavita pattern), so nothing
+      # needs k8smaster's local disk and the pod can float.
       enableServiceLinks: false  # avoid injected <SVC>_PORT env vars (bit paperless)
       securityContext:
-        fsGroup: 472  # grafana runs as uid/gid 472; make the PVC writable
+        fsGroup: 472  # grafana runs as uid/gid 472
+      initContainers:
+      # Restore the newest data backup into the RAM volume; fall back a
+      # generation if the newest tar is torn.
+      - name: data-restore
+        image: busybox:1.36
+        command: ["sh", "-c"]
+        args:
+        - |
+          set -e
+          if [ -f /backup/grafana-data.tar ] && tar -xf /backup/grafana-data.tar -C /data 2>/dev/null; then
+            echo "restored grafana-data.tar"
+          elif [ -f /backup/grafana-data.prev.tar ] && tar -xf /backup/grafana-data.prev.tar -C /data 2>/dev/null; then
+            echo "restored grafana-data.prev.tar (newest was unreadable)"
+          else
+            echo "no backup found - starting fresh"
+          fi
+          chown -R 472:472 /data
+          chmod 0775 /data
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: backup
+          mountPath: /backup
       containers:
       - name: grafana
         image: grafana/grafana:13.0.3
@@ -79,10 +101,55 @@ spec:
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 3
+      # Hourly tar of the RAM data dir to the backup PVC with
+      # one-generation rotation + size guard; final backup on shutdown
+      # (preStop). Worst case after an unclean node death: <=1h of
+      # dashboard edits lost (the provisioned datasource is a ConfigMap
+      # and never at risk).
+      - name: data-backup
+        image: busybox:1.36
+        command: ["sh", "-c"]
+        args:
+        - |
+          backup() {
+            tar -cf /backup/.tmp.tar -C /data --exclude=png --exclude=csv . || return 1
+            sz=$(stat -c %s /backup/.tmp.tar 2>/dev/null || echo 0)
+            if [ "$sz" -gt 10240 ]; then
+              [ -f /backup/grafana-data.tar ] && cp /backup/grafana-data.tar /backup/grafana-data.prev.tar
+              mv /backup/.tmp.tar /backup/grafana-data.tar
+              echo "backup ok ($sz bytes) $(date)"
+            else
+              echo "backup skipped - suspiciously small ($sz bytes)"
+              rm -f /backup/.tmp.tar
+            fi
+          }
+          while true; do sleep 3600; backup; done
+        lifecycle:
+          preStop:
+            exec:
+              command: ["sh", "-c", "tar -cf /backup/.tmp.tar -C /data --exclude=png --exclude=csv . && sz=$(stat -c %s /backup/.tmp.tar) && [ \"$sz\" -gt 10240 ] && { [ -f /backup/grafana-data.tar ] && cp /backup/grafana-data.tar /backup/grafana-data.prev.tar; mv /backup/.tmp.tar /backup/grafana-data.tar; } || rm -f /backup/.tmp.tar"]
+        volumeMounts:
+        - name: data
+          mountPath: /data
+          readOnly: true
+        - name: backup
+          mountPath: /backup
+        resources:
+          requests:
+            memory: "16Mi"
+            cpu: "10m"
+          limits:
+            memory: "64Mi"
+            cpu: "200m"
       volumes:
+      # RAM-backed; persisted via the sidecar/preStop backups above.
       - name: data
+        emptyDir:
+          medium: Memory
+          sizeLimit: 512Mi
+      - name: backup
         persistentVolumeClaim:
-          claimName: grafana-data
+          claimName: grafana-data-backup
       - name: datasources
         configMap:
           name: grafana-datasources

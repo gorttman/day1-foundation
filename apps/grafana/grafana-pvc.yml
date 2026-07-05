@@ -1,13 +1,13 @@
-# PLACEHOLDER STORAGE: local-path is node-local and non-durable - same
-# caveat as the day2 apps (see day2-services apps/jellyfin). Grafana's
-# internal SQLite DB lives here, so it must never sit directly on NFS;
-# move to proper storage when it exists (requires recreating the PVC).
-# The deployment targets lane=infrastructure (k8smaster), the only node
-# with real disk - on diskless pinode-01 local-path is a 4G RAM tmpfs.
+# Grafana's data dir (internal SQLite DB) runs in a RAM emptyDir - the
+# pihole/kavita pattern: SQLite must never sit on NFS, and only
+# k8smaster has real local disk, so RAM + tar backups keeps the pod
+# free to float between nodes. This PVC holds the sidecar's hourly tar
+# backups (plain files - NFS-safe); the init container restores the
+# newest readable one on pod start.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: grafana-data
+  name: grafana-data-backup
   namespace: monitoring
   labels:
     app: grafana
@@ -17,7 +17,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: local-path
+  storageClassName: nfs-client
   resources:
     requests:
       storage: 2Gi

@@ -16,9 +16,9 @@ shared with influxdb.
 - No alert rules / notification channels
 - No extra data sources
 
-## Storage - PLACEHOLDER
-2Gi `local-path` PVC (holds Grafana's internal SQLite DB): node-local,
-non-durable - same caveat as the day2 apps. The deployment targets
-`lane=infrastructure` (k8smaster), the only node whose local-path is
-real disk. Move to proper storage later; never put the SQLite volume
-directly on NFS.
+## Storage - RAM data dir + NFS backups (pihole pattern)
+RAM emptyDir data dir (SQLite inside) + hourly tar backups on the
+`grafana-data-backup` nfs-client PVC, restored on pod start - the
+pihole/kavita pattern, so the pod floats freely between nodes. Worst
+case after an unclean node death: up to 1h of dashboard edits lost.
+The provisioned datasource is a ConfigMap and never at risk.
