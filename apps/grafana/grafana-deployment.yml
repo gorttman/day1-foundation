@@ -27,9 +27,23 @@ spec:
       # the patch template from day2-services components/workload-affinity/
       # and add it to ansible/label-nodes.yml.
       #
-      # No node pin: the data dir (SQLite) runs in a RAM emptyDir with
-      # tar backups on nfs-client (pihole/kavita pattern), so nothing
-      # needs k8smaster's local disk and the pod can float.
+      # No hard node pin: the data dir (SQLite) runs in a RAM emptyDir
+      # with tar backups on nfs-client (pihole/kavita pattern), so
+      # nothing needs k8smaster's local disk. Soft preference for the
+      # infrastructure lane because the grafana image (~600MB) does not
+      # fit pinode-01's 4G tmpfs image store - proven immediately when
+      # the unpinned pod scheduled there and ImagePull ENOSPC'd. Soft
+      # only: if k8smaster is down, scheduling elsewhere is still
+      # allowed (and will work once pinode has a real disk).
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: lane
+                operator: In
+                values: ["infrastructure"]
       enableServiceLinks: false  # avoid injected <SVC>_PORT env vars (bit paperless)
       securityContext:
         fsGroup: 472  # grafana runs as uid/gid 472
