@@ -1,0 +1,23 @@
+# Grafana's data dir (internal SQLite DB) runs in a RAM emptyDir - the
+# pihole/kavita pattern: SQLite must never sit on NFS, and only
+# k8smaster has real local disk, so RAM + tar backups keeps the pod
+# free to float between nodes. This PVC holds the sidecar's hourly tar
+# backups (plain files - NFS-safe); the init container restores the
+# newest readable one on pod start.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data-backup
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/component: visualization
+    argocd.argoproj.io/managed-by: argocd
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nfs-client
+  resources:
+    requests:
+      storage: 2Gi

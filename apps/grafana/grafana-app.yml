@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: observability
+  annotations:
+    argocd.argoproj.io/sync-wave: "11"  # after influxdb (wave 10)
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/gorttman/day1-foundation.git
+    targetRevision: main
+    path: apps/grafana
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

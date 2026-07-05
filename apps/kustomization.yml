@@ -13,5 +13,5 @@ resources:
   - metallb/metallb-app.yml
   - metallb/metallb-config-app.yml
   - qnap-storage/qnap-storage-app.yml
-  # - influxdb/influxdb-app.yml
-
+  - influxdb/influxdb-app.yml
+  - grafana/grafana-app.yml
