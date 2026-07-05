@@ -1,0 +1,106 @@
+# Node labeling for workload placement - see "Node labels and workload
+# affinity" in the repo README for the convention.
+#
+# Desired state lives in the `workload_affinity` map below: each app names
+# the node that carries its `workload-affinity/<app>=primary` label and,
+# optionally, a `secondary` node. The playbook converges the cluster to
+# exactly that map - it adds the labels where they belong and strips the
+# key from every other node, so moving an app's primary to a new Pi is a
+# one-line edit here followed by a re-run. No app manifests change.
+#
+# Run from the repo root on k8smaster. Needs sudo because the k3s
+# kubeconfig is root-readable only and the k8s action plugin reads it on
+# the controller side:
+#   sudo ansible-playbook ansible/label-nodes.yml
+#
+# k8smaster deliberately has no workload-affinity labels: it stays
+# lane=infrastructure only.
+---
+- name: Apply workload-affinity node labels
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+
+  vars:
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    # Every node the playbook may need to strip stale labels from.
+    cluster_nodes:
+      - k8smaster
+      - pinode-01
+    # Coarse role split. k8smaster is infrastructure-only and never
+    # carries workload-affinity labels.
+    node_lanes:
+      k8smaster: infrastructure
+      pinode-01: applications
+    # app name -> preferred home. All primaries sit on pinode-01 while it
+    # is the only applications node; that is expected. Add `secondary:` to
+    # an app when a second applications node exists.
+    workload_affinity:
+      immich:
+        primary: pinode-01
+      paperless:
+        primary: pinode-01
+      nextcloud:
+        primary: pinode-01
+
+  tasks:
+    - name: Ensure lane labels
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: patched
+        kind: Node
+        name: "{{ item.key }}"
+        definition:
+          metadata:
+            labels:
+              lane: "{{ item.value }}"
+      loop: "{{ node_lanes | dict2items }}"
+      loop_control:
+        label: "lane={{ item.value }} on {{ item.key }}"
+
+    - name: Label each app's primary node
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: patched
+        kind: Node
+        name: "{{ item.value.primary }}"
+        definition:
+          metadata:
+            # Jinja is not evaluated inside YAML keys, so build the dict
+            # as an expression.
+            labels: "{{ {'workload-affinity/' + item.key: 'primary'} }}"
+      loop: "{{ workload_affinity | dict2items }}"
+      loop_control:
+        label: "workload-affinity/{{ item.key }}=primary on {{ item.value.primary }}"
+
+    - name: Label each app's secondary node (when one is designated)
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: patched
+        kind: Node
+        name: "{{ item.value.secondary }}"
+        definition:
+          metadata:
+            labels: "{{ {'workload-affinity/' + item.key: 'secondary'} }}"
+      loop: "{{ workload_affinity | dict2items }}"
+      loop_control:
+        label: "workload-affinity/{{ item.key }}=secondary on {{ item.value.secondary | default('(none)') }}"
+      when: item.value.secondary is defined
+
+    - name: Remove workload-affinity labels from nodes no longer assigned
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: patched
+        kind: Node
+        name: "{{ item.0 }}"
+        definition:
+          metadata:
+            # null value deletes the label via merge patch
+            labels: "{{ {'workload-affinity/' + item.1.key: None} }}"
+      loop: "{{ cluster_nodes | product(workload_affinity | dict2items) | list }}"
+      loop_control:
+        label: "strip workload-affinity/{{ item.1.key }} from {{ item.0 }}"
+      when:
+        - item.0 != item.1.value.primary
+        - item.0 != (item.1.value.secondary | default(''))
