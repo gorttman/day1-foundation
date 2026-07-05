@@ -27,8 +27,5 @@ Kustomize builds a ConfigMap from `dhcpd.conf` which is mounted into the pod. Wh
 - DHCP: UDP 67/68 (hostNetwork — binds directly on the node)
 - One instance per broadcast domain; for multiple VLANs use `dhcrelay`
 
-## Tests
-Apply `tests/dhcpd-test-pod.yml` — the pod requests a DHCP lease from dhcpd.
-
 ## Notes
 Runs with minimal capabilities and `hostNetwork` only. Do not run more than one dhcpd per broadcast domain or leases will conflict.
