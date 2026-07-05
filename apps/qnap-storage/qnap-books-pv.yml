@@ -1,0 +1,28 @@
+# Static NFS PersistentVolume onto the QNAP (valinor-m) public_root
+# share. One PV per QNAP directory - see README.md for the pattern and
+# the prerequisites (FQDN resolution on every node via
+# day0-infra-build's qnap_client role; directory chowned 1000:1000).
+#
+# storageClassName is a deliberate non-provisioned marker class: it
+# stops the default local-path provisioner from intercepting claims and
+# lets PVCs bind these by class + volumeName.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: qnap-books
+  labels:
+    app.kubernetes.io/part-of: qnap-storage
+    argocd.argoproj.io/managed-by: argocd
+spec:
+  capacity:
+    storage: 1Ti  # informational for NFS; not enforced
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: qnap-static
+  mountOptions:
+    - vers=4
+    - noatime
+  nfs:
+    server: qnap.i3sec.com.au
+    path: /public_root/books
