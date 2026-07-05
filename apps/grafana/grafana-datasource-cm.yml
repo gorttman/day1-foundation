@@ -1,0 +1,31 @@
+# Pre-provisioned InfluxDB 2.x data source - wired on first login.
+# org/bucket/token come from the grafana-influxdb SealedSecret via env
+# expansion (Grafana interpolates $VAR in provisioning files).
+# Dashboards and alerting are deliberately NOT provisioned - config-time.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/component: visualization
+    argocd.argoproj.io/managed-by: argocd
+data:
+  influxdb.yml: |
+    apiVersion: 1
+    datasources:
+      - name: InfluxDB
+        uid: influxdb-pilab
+        type: influxdb
+        access: proxy
+        url: http://influxdb.monitoring.svc.cluster.local:8086
+        isDefault: true
+        jsonData:
+          version: Flux
+          organization: $INFLUXDB_ORG
+          defaultBucket: $INFLUXDB_BUCKET
+          tlsSkipVerify: false
+        secureJsonData:
+          token: $INFLUXDB_TOKEN

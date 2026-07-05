@@ -12,7 +12,7 @@ resources:
   - influxdb-namespace.yml
   - influxdb-pvc.yml
   - influxdb-configmap.yml
-  - influxdb-secret.yml
+  - influxdb-sealed-secret.yml
   - influxdb-statefulset.yml
   - influxdb-service.yml
   - influxdb-ingress.yml

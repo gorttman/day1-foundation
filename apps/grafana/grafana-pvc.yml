@@ -1,0 +1,23 @@
+# PLACEHOLDER STORAGE: local-path is node-local and non-durable - same
+# caveat as the day2 apps (see day2-services apps/jellyfin). Grafana's
+# internal SQLite DB lives here, so it must never sit directly on NFS;
+# move to proper storage when it exists (requires recreating the PVC).
+# The deployment targets lane=infrastructure (k8smaster), the only node
+# with real disk - on diskless pinode-01 local-path is a 4G RAM tmpfs.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/component: visualization
+    argocd.argoproj.io/managed-by: argocd
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi

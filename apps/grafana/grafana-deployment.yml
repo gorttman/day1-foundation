@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/component: visualization
+    argocd.argoproj.io/managed-by: argocd
+spec:
+  replicas: 1
+  # RWO local-path volume: old pod must release it before the new one starts
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+        app.kubernetes.io/name: grafana
+        app.kubernetes.io/component: visualization
+    spec:
+      # workload-affinity: if Grafana ever gets a preferred home, wire in
+      # the patch template from day2-services components/workload-affinity/
+      # and add it to ansible/label-nodes.yml. For now it targets the
+      # infrastructure lane like influxdb - k8smaster is also the only
+      # node whose local-path storage is real disk (pinode-01's is a 4G
+      # RAM tmpfs).
+      nodeSelector:
+        lane: infrastructure
+      enableServiceLinks: false  # avoid injected <SVC>_PORT env vars (bit paperless)
+      securityContext:
+        fsGroup: 472  # grafana runs as uid/gid 472; make the PVC writable
+      containers:
+      - name: grafana
+        image: grafana/grafana:13.0.3
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+        # org/bucket/token for the provisioned datasource (interpolated
+        # into grafana-datasources by Grafana's provisioning engine)
+        envFrom:
+        - secretRef:
+            name: grafana-influxdb
+        env:
+        - name: GF_SERVER_ROOT_URL
+          value: https://grafana.i3sec.com.au
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/grafana
+        - name: datasources
+          mountPath: /etc/grafana/provisioning/datasources
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 45
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: grafana-data
+      - name: datasources
+        configMap:
+          name: grafana-datasources

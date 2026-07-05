@@ -12,5 +12,6 @@ resources:
   - log-archiver/log-archiver-app.yml
   - metallb/metallb-app.yml
   - metallb/metallb-config-app.yml
-  # - influxdb/influxdb-app.yml
+  - influxdb/influxdb-app.yml
+  - grafana/grafana-app.yml
 

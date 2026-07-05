@@ -20,10 +20,10 @@ spec:
   ingressClassName: nginx
   tls:
   - hosts:
-    - influxdb.pilab.local  # Replace with your actual domain
+    - influxdb.i3sec.com.au
     secretName: influxdb-tls
   rules:
-  - host: influxdb.pilab.local  # Replace with your actual domain
+  - host: influxdb.i3sec.com.au
     http:
       paths:
       - path: /
