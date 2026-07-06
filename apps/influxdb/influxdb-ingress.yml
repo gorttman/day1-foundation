@@ -10,14 +10,9 @@ metadata:
     app.kubernetes.io/part-of: observability
     argocd.argoproj.io/managed-by: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "3"
     cert-manager.io/cluster-issuer: "private-ca"
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
 spec:
-  ingressClassName: nginx
+  ingressClassName: traefik
   tls:
   - hosts:
     - influxdb.i3sec.com.au

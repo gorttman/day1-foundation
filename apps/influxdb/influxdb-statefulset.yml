@@ -9,8 +9,6 @@ metadata:
     app.kubernetes.io/component: database
     app.kubernetes.io/part-of: observability
     argocd.argoproj.io/managed-by: argocd
-  annotations:
-    argocd.argoproj.io/sync-wave: "2"
 spec:
   serviceName: influxdb
   replicas: 1
