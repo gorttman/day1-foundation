@@ -15,3 +15,4 @@ resources:
   - qnap-storage/qnap-storage-app.yml
   - influxdb/influxdb-app.yml
   - grafana/grafana-app.yml
+  - cloudflared/cloudflared-app.yml
