@@ -38,7 +38,11 @@ spec:
         imagePullPolicy: IfNotPresent
         # Token-based tunnel (created via the dashboard) - config is
         # remotely-managed in Cloudflare, no local config.yml here.
+        # --metrics pins the /ready health server to containerPort 2000;
+        # cloudflared's default (20241) doesn't match the probe otherwise.
         args:
+        - --metrics
+        - 0.0.0.0:2000
         - tunnel
         - run
         - --token
