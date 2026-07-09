@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudflared
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: cloudflared
+    app.kubernetes.io/part-of: day1-foundation
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"  # core infra, no dependencies on other day1 apps
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/gorttman/day1-foundation.git
+    targetRevision: main
+    path: apps/cloudflared
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cloudflared
+
+  syncPolicy:
+    automated:
+      prune: true      # Remove resources when removed from git
+      selfHeal: true   # Sync when resources are modified
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  ignoreDifferences: []
+
+  revisionHistoryLimit: 3

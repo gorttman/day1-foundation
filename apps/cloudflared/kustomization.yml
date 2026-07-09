@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: cloudflared
+
+commonLabels:
+  app.kubernetes.io/part-of: day1-foundation
+  tier: day1
+
+resources:
+  - cloudflared-namespace.yml
+  - cloudflared-sealedsecret.yml
+  - cloudflared-deployment.yml
+
+# Resource ordering via sync-waves in annotations:
+# Wave 0: Namespace
+# Wave 1: SealedSecret
+# Wave 2: Deployment
