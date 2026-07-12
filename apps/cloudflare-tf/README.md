@@ -2,20 +2,33 @@
 
 Manages Cloudflare zone + Zero Trust Tunnel config as Terraform, applied
 in-cluster by an Argo CD Sync-hook Job rather than from a laptop, CI, or
-the dashboard. Two things, from one shared list of hostnames
-(`tunneled_hostnames` in `variables.tf`):
+the dashboard. **Four** things, from one shared list of hostnames
+(`tunneled_hostnames` in `variables.tf`) — see `HISTORY.md` for the full
+story of how this list grew from two things to four, and everything that
+went wrong building it:
 
-- **The tunnel's Public Hostname / ingress config** (`tunnel.tf`) — which
-  hostnames are exposed through the `cloudflared` tunnel, and what
-  internal origin each forwards to. This used to be a dashboard-only,
-  manually-clicked setting; it's now code.
-- **A WAF custom rule enforcing mTLS** (`waf.tf`) on that same hostname
-  set — blocks any request without a valid, non-revoked client cert.
+- **The tunnel's Public Hostname / ingress config** (`tunnel.tf`,
+  `cloudflare_zero_trust_tunnel_cloudflared_config`) — which hostnames
+  are exposed through the `cloudflared` tunnel, and what internal origin
+  each forwards to.
+- **The public DNS record** (`tunnel.tf`, `cloudflare_dns_record`) — a
+  proxied CNAME to `<tunnel_id>.cfargotunnel.com`. Separate resource
+  from the tunnel config above; Cloudflare's dashboard wizard creates
+  both atomically, Terraform doesn't.
+- **A WAF custom rule enforcing mTLS** (`waf.tf`,
+  `cloudflare_ruleset`) — blocks any request without a valid,
+  non-revoked client cert.
+- **The mTLS "Client Certificate" hostname list** (`waf.tf`,
+  `cloudflare_certificate_authorities_hostname_associations`) — a third,
+  separate setting that makes Cloudflare's edge actually *request* a
+  client cert during the TLS handshake in the first place. Without a
+  hostname here, the WAF rule above still blocks (no cert was ever
+  presented) but the browser is never prompted at all — looks identical
+  to a broken WAF rule from the outside.
 
 Adding a new service to "Cloudflare-based secure access" is meant to be
-exactly one change: add its hostname to `tunneled_hostnames`. Both the
-tunnel route and the WAF protection follow from that one entry — see the
-runbook below.
+exactly one change: add its hostname to `tunneled_hostnames`. All four
+effects follow from that one entry — see the runbook below.
 
 ## Why this deviates from the dhcpd/coredns ConfigMap convention
 
@@ -78,6 +91,20 @@ instance.
 this cluster's `sealed-secrets-controller` (namespace `kube-system`, the
 kubeseal default). Nothing left to seal; this file is ready to commit and
 sync.
+
+**API token permissions required** (Zone-scoped, `i3sec.com.au`) — found
+the hard way, one `Authentication error` at a time, so listing all of
+them here up front for next time:
+- Zone → **DNS** → Edit
+- Zone → **SSL and Certificates** → Edit
+- Zone → **Zone WAF** → Edit (or equivalent Firewall/Rulesets permission)
+- Account → **Cloudflare Tunnel** → Edit
+
+If a Job/diagnostic pod gets a `403 Authentication error` from the
+Cloudflare API, check this list before assuming anything else is wrong —
+it's almost always a missing permission, not a bug. Editing an existing
+token's permissions doesn't change its value, so nothing needs
+re-sealing when a new scope is added.
 
 ## Allow-listed client certs
 
@@ -188,8 +215,14 @@ round-trip.
 
 ### Runbook: exposing a new k8s-hosted service through the tunnel
 
+This is the full procedure, including every gotcha `vscode` actually hit
+(see `HISTORY.md` for the blow-by-blow). Follow all of it, not just step
+1 — most of these apps have their own login, and that's where the real
+landmines are.
+
 1. **Add the hostname** to `tunneled_hostnames` in `variables.tf`, no
-   `origin` override needed:
+   `origin` override needed for anything that's a normal k8s Service
+   behind `ingress-nginx`:
    ```hcl
    default = {
      "argocd.i3sec.com.au" = {}
@@ -199,36 +232,86 @@ round-trip.
      "qnap.i3sec.com.au" = { origin = "https://192.168.2.30:443", no_tls_verify = true }
    }
    ```
-   This one line does both jobs: adds the tunnel route *and* the mTLS
-   WAF protection.
+   This one line drives all four effects (tunnel route, DNS record, WAF
+   protection, mTLS cert-request setting).
 
-2. **If the service's existing routing already works internally, prefer
-   pointing `origin` straight at whatever fronts it today** — Traefik
-   (`http://traefik.kube-system.svc.cluster.local:80`) or
-   `ingress-nginx-controller`, whichever it already uses — instead of
-   building a second, parallel Ingress under the other controller. The
-   tunnel's origin is just a network address; if the existing setup
-   (routing, TLS, and any app-level auth) already works on the LAN, the
-   tunnel can reuse it exactly as-is with zero app-level changes. Only
-   add a new Ingress if the service genuinely has no working setup to
-   point at yet.
+2. **Give the service a public-facing `ingressClassName: nginx` Ingress**
+   — its existing internal ingress (if any) is almost certainly on
+   `ingressClassName: traefik`, which Cloudflare's tunnel never reaches
+   for the default origin. Use `vscode-public-ingress.yml` in
+   `day2-services/apps/vscode-server/` as the template. Keep the
+   internal Ingress/Middleware setup completely untouched — this is a
+   second, parallel Ingress object for the same host, not a replacement.
 
-3. Commit and push. Merging `day1-foundation`'s `main` applies the
-   tunnel + WAF change for real immediately (`selfHeal` on both the root
-   app-of-apps and this `Application`).
+3. **If the app has its own login/auth** (most of these do — the
+   decision made early in this project was every app keeps its own auth,
+   not just Cloudflare's mTLS gate), and that auth currently works via a
+   Traefik `forwardAuth` Middleware internally, **check what its
+   "not authenticated" response looks like** before assuming the nginx
+   annotations alone will work:
+   - If it returns **`401`**: straightforward. Add
+     `nginx.ingress.kubernetes.io/auth-url` (pointing at the same
+     internal auth-check service Traefik already uses) and
+     `nginx.ingress.kubernetes.io/auth-signin` (nginx builds its own
+     redirect to a login URL on seeing `401` — don't rely on anything
+     the auth check itself returns for this).
+   - If it returns **`302`** (a redirect Traefik passes straight
+     through): **this will produce a `500`, not a redirect,** on the
+     nginx path. nginx's `auth_request` module only accepts `2xx`/
+     `401`/`403` from the auth subrequest — a `302` is treated as an
+     internal error. This isn't a config tweak, it's a real
+     incompatibility between the two ingress controllers' forward-auth
+     models. The auth service itself needs to return `401` (with an
+     HTML body containing a client-side meta-refresh/JS redirect, so
+     Traefik's pass-through behavior still produces a working redirect
+     internally) — see `images/vscode-auth/auth_server.py` in
+     `day2-services` for the exact pattern, and check for the same
+     Safari-WebSocket-caused design reasoning before touching it.
+   - **Whatever the login page's own path is** (e.g. `/app/auth`), make
+     sure the auth-required Ingress's path pattern doesn't also match
+     it. A regex path like `/app(/|$)(.*)` matches `/app/auth` too, and
+     nginx's location matching **prefers a matching regex location over
+     a matching plain-prefix one, regardless of which is more
+     specific** — so the login page ends up behind its own auth check,
+     creating an infinite redirect loop that eventually 414s. Exclude it
+     explicitly: `/app(?!/auth(?:/|$))(/|$)(.*)` (non-capturing lookahead,
+     so it doesn't shift `$1`/`$2` if you're also using
+     `rewrite-target`).
 
-**Removing** a hostname: same step 1, minus the entry. No sealing
-involved for any of this — the whole hostname/origin map is plaintext in
-git by design.
+4. **Commit and push both repos** (`day2-services` first if a new
+   Ingress was needed, so the route exists before the tunnel starts
+   sending traffic there; then `day1-foundation`). Both repos'
+   Applications have `automated: {selfHeal: true}` — merging to `main`
+   applies for real immediately, no separate "sync" step.
 
-### Companion note: exposing `vscode.i3sec.com.au`
+5. **If Argo CD seems to be re-running the old config**, it's probably
+   sync lag, not a bad merge — check
+   `kubectl get application -n argocd cloudflare-tf -o
+   jsonpath='{.status.sync.revision}'` against the actual latest commit
+   SHA. If they don't match, force it:
+   ```bash
+   kubectl patch application -n argocd cloudflare-tf --type merge \
+     -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
+   ```
+   If that alone doesn't produce a new Job (true for Sync hooks
+   specifically — they don't participate in normal drift detection),
+   trigger an explicit sync:
+   ```bash
+   kubectl patch application -n argocd cloudflare-tf --type merge \
+     -p '{"operation":{"sync":{"revision":"<commit-sha>","prune":true}}}'
+   ```
 
-vscode-server was LAN-only (`ingressClassName: traefik`, `private-ca`
-cert, no public DNS record at all — confirmed via a direct DNS query
-against `1.1.1.1`, `NXDOMAIN`, versus `argocd`/`books`/`qnap` which all
-resolve to Cloudflare's anycast IPs). Its entry in `tunneled_hostnames`
-overrides `origin` to `http://traefik.kube-system.svc.cluster.local:80`
-— the same Traefik Ingress, `forwardAuth` Middleware, and PAM auth it
-already uses internally, unchanged. No `day2-services` changes at all:
-the tunnel just starts sending this hostname's traffic to the exact
-setup that was already working on the LAN.
+6. **If this is the very first time Terraform has managed a hostname
+   that already existed manually** (migrating something in, rather than
+   a genuinely brand-new service), expect an "already exists" error on
+   the first `apply` for whichever resource(s) predate Terraform (WAF
+   ruleset is one-per-zone-per-phase; DNS records and the mTLS hostname
+   list can also already have entries). Fix with `terraform import`
+   *before* applying — see `HISTORY.md` #6/#7/#11 for worked examples of
+   each resource type's import ID format (none of them are consistent
+   with each other, check the resource's actual docs).
+
+**Removing** a hostname: same step 1, minus the entry, plus deleting
+whatever public Ingress was added for it in step 2. No sealing involved
+for any of this — the whole hostname/origin map is plaintext in git by
+design.
