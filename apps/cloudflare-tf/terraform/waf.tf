@@ -25,3 +25,16 @@ resource "cloudflare_ruleset" "zone_mtls_enforcement" {
     enabled     = true
   }]
 }
+
+# Separate from the WAF rule above - this is the TLS-layer setting that
+# makes Cloudflare's edge actually *request* a client cert during the
+# handshake for these hostnames in the first place. Without a hostname
+# here, the WAF rule above still blocks it (no cert was ever presented),
+# but the browser is never even prompted - looks identical to a broken
+# WAF rule from the outside. No mtls_certificate_id set: hostnames
+# associate to the active Cloudflare Managed CA (the same CA the 5
+# registered device certs were issued under), matching existing behavior.
+resource "cloudflare_certificate_authorities_hostname_associations" "mtls_hosts" {
+  zone_id   = var.zone_id
+  hostnames = local.mtls_protected_hostnames
+}
