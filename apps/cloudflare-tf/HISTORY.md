@@ -214,6 +214,23 @@ correct, vscode still didn't work — in stages:
   negative lookahead (`/gorttman(?!/auth(?:/|$))(/|$)(.*)`) excluding the
   login path from the auth-required regex.
 
+### 13. Validation: homeassistant, added cleanly
+
+First real test of the runbook on a genuinely new app, after all of the
+above was fixed. Homeassistant handles its own login internally (no
+forward-auth microservice like vscode's), so it only needed: one
+hostname added to `tunneled_hostnames` (no `origin` override), one new
+`ingressClassName: nginx` Ingress in `day2-services` with no auth
+annotations at all, both repos committed and merged in the same
+dependency order as before (`day2-services` first). Result: `terraform
+apply` reported exactly `1 added, 3 changed, 0 destroyed` (new DNS
+record; tunnel config, WAF rule, and mTLS hostname list each updated
+in-place) and worked first try. Confirmed live via DNS and a `403` on
+the mTLS gate immediately after. Only manual step needed was the same
+Argo CD sync-lag workaround as always (hard refresh + explicit
+`.operation.sync` patch) — everything else was genuinely just "add a
+hostname to a variable," as originally intended.
+
 ## What's true now
 
 One variable (`tunneled_hostnames` in `variables.tf`) drives four
