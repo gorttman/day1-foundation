@@ -126,7 +126,17 @@ should always match.
 | Marina's iPhone     | `fc0c591a682b9881dcada6bb1acf96d2b9909d2049cadbaef1e577983a056992` |
 | Marina's iPad mini  | `45310e8704d0f266e7c7c685571df96c8c27846537074d15497cb8d3740563b5` |
 
-**TODO:** Brett's Mac cert still needs to be generated and added.
+**TODO:** Brett's Mac cert still needs to be generated and added. Checked
+the cluster for any self-service tooling that might help — found
+`day2-services/apps/ca-portal` (`ca.i3sec.com.au`), but that's a
+different thing: it's for installing/trusting the internal **server**
+TLS CA (`i3sec-private-ca`) on a device so internal HTTPS sites show a
+green padlock, not for issuing an mTLS **client** certificate. There's
+no cluster-side mechanism for the latter — the other 5 certs must have
+come from whatever Cloudflare-side flow was used originally (Zero
+Trust → mTLS Certificates, or WARP device enrollment). Once the Mac has
+a cert, adding it here is just the runbook below — get its fingerprint,
+add a row, reseal.
 
 ### Runbook: adding, removing, or rotating a device cert
 
