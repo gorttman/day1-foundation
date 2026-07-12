@@ -44,4 +44,11 @@ spec:
           configMap:
             name: cloudflare-tf-config
         - name: tf-workspace
-          emptyDir: {}
+          # This node's default emptyDir is NFS-backed (local_lock=none),
+          # which fails flock() with ENOLCK - Terraform's state locking
+          # needs real file locks even with the pg backend. medium: Memory
+          # (tmpfs) avoids it; confirmed via a throwaway test pod on the
+          # same node. Small sizeLimit since this node is RAM-constrained.
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi
