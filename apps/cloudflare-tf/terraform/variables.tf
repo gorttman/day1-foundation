@@ -15,10 +15,42 @@ variable "zone_id" {
   type        = string
 }
 
-variable "mtls_protected_hostnames" {
-  description = "Hostnames enforced by the mTLS WAF block rule. NOT the same as the TLS-layer 'Hosts' list under SSL/TLS > Client Certificates, which has no Terraform resource and stays a manual dashboard setting."
-  type    = list(string)
-  default = ["argocd.i3sec.com.au", "books.i3sec.com.au", "qnap.i3sec.com.au"]
+variable "cloudflare_tunnel_id" {
+  description = "UUID of the existing cloudflared Tunnel (token-based, created via the Zero Trust dashboard). Not a secret - an identifier, not a credential - visible in Zero Trust > Networks > Tunnels."
+  type        = string
+  default     = "e5de1f51-45bd-4357-83e8-9fb6574b8339"
+}
+
+variable "tunneled_hostnames" {
+  description = <<-EOT
+    Single source of truth for every hostname exposed via the Cloudflare
+    Tunnel. Drives both the tunnel's ingress config (cloudflare_zero_trust_tunnel_cloudflared_config,
+    tunnel.tf) and the mTLS WAF rule's protected-hostname list (waf.tf,
+    derived via keys()) - add a hostname here once and both update.
+
+    `origin` defaults to the shared ingress-nginx-controller Service every
+    k8s-hosted app in this cluster is fronted by (Cloudflare forwards by
+    Host header; ingress-nginx does the final per-app routing via each
+    app's own Ingress). Only override `origin` for things that aren't a
+    k8s Service behind that controller - e.g. qnap, a physical NAS.
+
+    NOT the same as the TLS-layer 'Hosts' list under SSL/TLS > Client
+    Certificates, which has no Terraform resource and stays a manual
+    dashboard setting.
+  EOT
+  type = map(object({
+    origin        = optional(string, "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80")
+    no_tls_verify = optional(bool, false)
+  }))
+  default = {
+    "argocd.i3sec.com.au" = {}
+    "books.i3sec.com.au"  = {}
+    "vscode.i3sec.com.au" = {}
+    "qnap.i3sec.com.au" = {
+      origin        = "https://192.168.2.30:443"
+      no_tls_verify = true # assumption: QNAP's web UI likely uses a self-signed/vendor cert - confirm and drop this if it's actually a valid cert
+    }
+  }
 }
 
 variable "allowed_client_cert_fingerprints" {

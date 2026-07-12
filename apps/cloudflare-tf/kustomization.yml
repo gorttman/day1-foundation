@@ -16,4 +16,5 @@ configMapGenerator:
       - terraform/versions.tf
       - terraform/variables.tf
       - terraform/waf.tf
+      - terraform/tunnel.tf
       - terraform/outputs.tf

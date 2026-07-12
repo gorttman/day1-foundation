@@ -1,5 +1,7 @@
 locals {
-  hostname_set = join(" ", [for h in var.mtls_protected_hostnames : "\"${h}\""])
+  mtls_protected_hostnames = keys(var.tunneled_hostnames)
+
+  hostname_set = join(" ", [for h in local.mtls_protected_hostnames : "\"${h}\""])
 
   fingerprint_clause = length(var.allowed_client_cert_fingerprints) > 0 ? (
     " or not (cf.tls_client_auth.cert_fingerprint_sha256 in {${join(" ", [for fp in var.allowed_client_cert_fingerprints : "\"${fp}\""])}})"
