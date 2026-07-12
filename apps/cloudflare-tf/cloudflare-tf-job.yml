@@ -48,7 +48,9 @@ spec:
           # which fails flock() with ENOLCK - Terraform's state locking
           # needs real file locks even with the pg backend. medium: Memory
           # (tmpfs) avoids it; confirmed via a throwaway test pod on the
-          # same node. Small sizeLimit since this node is RAM-constrained.
+          # same node. sizeLimit: the cloudflare provider binary alone is
+          # ~228Mi (confirmed via a local `terraform init`), so 512Mi
+          # leaves headroom for the plan/state files too.
           emptyDir:
             medium: Memory
-            sizeLimit: 64Mi
+            sizeLimit: 512Mi
