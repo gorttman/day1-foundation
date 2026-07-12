@@ -202,48 +202,33 @@ round-trip.
    This one line does both jobs: adds the tunnel route *and* the mTLS
    WAF protection.
 
-2. **The service needs its own public-facing Ingress** on
-   `ingressClassName: nginx` (the `ingress-nginx-controller` this
-   Terraform's default origin points at) — its existing internal
-   ingress (if any) is almost certainly on `ingressClassName: traefik`
-   and Cloudflare never reaches it. See
-   `day2-services/apps/vscode-server/vscode-public-ingress.yml` for a
-   worked example, including how to carry over app-level auth
-   (`nginx.ingress.kubernetes.io/auth-url`, equivalent to a Traefik
-   `forwardAuth` middleware) and a path-prefix rewrite (equivalent to a
-   Traefik `stripPrefix` middleware) if the app needs either.
+2. **If the service's existing routing already works internally, prefer
+   pointing `origin` straight at whatever fronts it today** — Traefik
+   (`http://traefik.kube-system.svc.cluster.local:80`) or
+   `ingress-nginx-controller`, whichever it already uses — instead of
+   building a second, parallel Ingress under the other controller. The
+   tunnel's origin is just a network address; if the existing setup
+   (routing, TLS, and any app-level auth) already works on the LAN, the
+   tunnel can reuse it exactly as-is with zero app-level changes. Only
+   add a new Ingress if the service genuinely has no working setup to
+   point at yet.
 
-3. Commit and push both repos. Merging `day1-foundation`'s `main`
-   applies the tunnel + WAF change for real immediately (`selfHeal` on
-   both the root app-of-apps and this `Application`); the `day2-services`
-   Ingress needs to be live too, or the tunnel will route to a host with
-   nothing listening.
+3. Commit and push. Merging `day1-foundation`'s `main` applies the
+   tunnel + WAF change for real immediately (`selfHeal` on both the root
+   app-of-apps and this `Application`).
 
-**Removing** a hostname: same step 1, minus the entry (plus whatever
-cleanup the app's own public Ingress needs). No sealing involved for any
-of this — the whole hostname/origin map is plaintext in git by design.
+**Removing** a hostname: same step 1, minus the entry. No sealing
+involved for any of this — the whole hostname/origin map is plaintext in
+git by design.
 
-### Companion change: exposing `vscode.i3sec.com.au`
+### Companion note: exposing `vscode.i3sec.com.au`
 
 vscode-server was LAN-only (`ingressClassName: traefik`, `private-ca`
 cert, no public DNS record at all — confirmed via a direct DNS query
 against `1.1.1.1`, `NXDOMAIN`, versus `argocd`/`books`/`qnap` which all
-resolve to Cloudflare's anycast IPs). Adding it to `tunneled_hostnames`
-here is only half the change — `day2-services/apps/vscode-server/` also
-gained `vscode-public-ingress.yml` and `vscode-public-auth-ingress.yml`,
-mirroring the existing internal Ingress/Middleware setup but on
-`ingressClassName: nginx`. Unlike `argocd-public-ingress.yml` (which
-drops all local auth, relying solely on Cloudflare's edge mTLS),
-vscode's app-level PAM auth is deliberately kept on the public path too
-— defense in depth, since code-server is remote code execution, not a
-read-only viewer. The `nginx.ingress.kubernetes.io/auth-url` annotation
-replicates the internal Traefik `forwardAuth` middleware's call to the
-same `/verify` endpoint.
-
-One difference flagged as untested: Traefik's `redirectRegex` middleware
-issues a browser redirect from `/gorttman` to `/gorttman/`; the nginx
-`rewrite-target` equivalent just proxies a bare `/gorttman` request
-straight through without changing the browser's address bar. If
-code-server's frontend resolves assets relative to that address bar
-path, this could break on the public path specifically even though the
-internal path works fine. Verify once actually deployed.
+resolve to Cloudflare's anycast IPs). Its entry in `tunneled_hostnames`
+overrides `origin` to `http://traefik.kube-system.svc.cluster.local:80`
+— the same Traefik Ingress, `forwardAuth` Middleware, and PAM auth it
+already uses internally, unchanged. No `day2-services` changes at all:
+the tunnel just starts sending this hostname's traffic to the exact
+setup that was already working on the LAN.

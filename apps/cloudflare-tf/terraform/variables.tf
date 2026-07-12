@@ -45,7 +45,14 @@ variable "tunneled_hostnames" {
   default = {
     "argocd.i3sec.com.au" = {}
     "books.i3sec.com.au"  = {}
-    "vscode.i3sec.com.au" = {}
+    "vscode.i3sec.com.au" = {
+      # Not a k8s-hosted-app default: vscode's existing internal setup
+      # (Traefik Ingress + forwardAuth Middleware + PAM auth) already
+      # works and stays untouched. Point straight at Traefik instead of
+      # ingress-nginx so the tunnel reuses that exact same routing/auth,
+      # rather than needing a second ingress-nginx-based path.
+      origin = "http://traefik.kube-system.svc.cluster.local:80"
+    }
     "qnap.i3sec.com.au" = {
       origin        = "https://192.168.2.30:443"
       no_tls_verify = true # assumption: QNAP's web UI likely uses a self-signed/vendor cert - confirm and drop this if it's actually a valid cert
