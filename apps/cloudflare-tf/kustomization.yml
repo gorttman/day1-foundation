@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: infra
+
+resources:
+  - cloudflare-tf-job.yml
+  - cloudflare-tf-sealedsecret.yml
+
+# Hash suffix intentionally LEFT ENABLED here — deviates from the
+# disableNameSuffixHash: true convention used by dhcpd-conf and dns-conf's
+# configMapGenerators. See README.md for why.
+configMapGenerator:
+  - name: cloudflare-tf-config
+    files:
+      - terraform/versions.tf
+      - terraform/variables.tf
+      - terraform/waf.tf
+      - terraform/outputs.tf

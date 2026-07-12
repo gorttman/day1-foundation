@@ -16,3 +16,4 @@ resources:
   - influxdb/influxdb-app.yml
   - grafana/grafana-app.yml
   - cloudflared/cloudflared-app.yml
+  - cloudflare-tf/cloudflare-tf-app.yml
