@@ -106,6 +106,39 @@ it's almost always a missing permission, not a bug. Editing an existing
 token's permissions doesn't change its value, so nothing needs
 re-sealing when a new scope is added.
 
+## WAF enforcement: default-deny across the zone
+
+`waf.tf`'s `cloudflare_ruleset.zone_mtls_enforcement` used to match an
+explicit allow-list of known hostnames (`http.host in {"argocd...",
+"books...", ...}`) and block anything on that list without a valid
+cert. That fails **open**: a hostname published on the tunnel but
+accidentally left out of the list is silently exposed with no
+client-cert check at all — this already happened once with `qnap`.
+
+The rule is now default-deny across the whole zone instead:
+```
+(http.host wildcard "*.i3sec.com.au" or http.host eq "i3sec.com.au")
+and (not cf.tls_client_auth.cert_verified or cf.tls_client_auth.cert_revoked
+     or not (cf.tls_client_auth.cert_fingerprint_sha256 in {...}))
+→ block
+```
+Any hostname under `i3sec.com.au` now fails **closed** by default —
+missing it from `tunneled_hostnames` no longer means "unprotected," it
+means "doesn't exist as a route at all" (Cloudflare only evaluates this
+rule for proxied requests that actually reach the zone). The
+fingerprint-pinning clause (below) is preserved unchanged, just
+appended to the new host-matching condition instead of the old one.
+
+As of this change there's no hostname that needs an exception to stay
+public — no apex/`www` record exists in this zone, and no ACME HTTP-01
+challenge path relies on being reachable through it (checked: the
+`letsencrypt-*` `ClusterIssuer`s in `day2-services/apps/cert-manager/`
+are unreferenced — every Ingress in the cluster uses `private-ca`
+instead). If a hostname ever does need to be public with no client
+cert, add `and not http.host in {"the.hostname"}` to the expression in
+`waf.tf` — there's no variable-driven exception list yet since nothing
+needs one today.
+
 ## Allow-listed client certs
 
 `TF_VAR_allowed_client_cert_fingerprints` is a JSON array of SHA-256

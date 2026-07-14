@@ -302,6 +302,41 @@ someone finding and re-running the manual command from this file if
 their state ever needs rebuilding; worth retrofitting them the same
 way at some point.
 
+### 15. WAF rule inverted to default-deny
+
+The original mTLS WAF rule matched an explicit allow-list of hostnames
+(`http.host in {"argocd...", "books...", ...}`) — fails **open** for
+anything published on the tunnel but left off that list, which is
+exactly how `qnap` was briefly unprotected earlier in this project.
+Rewrote the expression to match the whole zone instead
+(`http.host wildcard "*.i3sec.com.au" or http.host eq "i3sec.com.au"`),
+so a forgotten hostname now fails **closed** by default rather than
+silently bypassing the client-cert check.
+
+Did a full read-only discovery pass before touching anything (via the
+same throwaway-pod/`terraform plan` pattern used throughout this
+project) to check what the blast radius of "default-deny across the
+whole zone" actually was, rather than assuming: confirmed the resource
+is already `cloudflare_ruleset` (no deprecated `firewall_rule`/`filter`
+migration needed), confirmed all 5 currently-tunneled hostnames already
+carry mTLS associations (zero would newly fail closed), confirmed the
+zone has no apex/`www` DNS record and no live ACME HTTP-01 dependency
+(grepped every Ingress across all three cluster repos — the
+`letsencrypt-*` `ClusterIssuer`s exist but nothing references them,
+every Ingress uses `private-ca`), and confirmed no other custom
+ruleset exists in the same phase to worry about ordering against. Net
+result: today, this change has no functional blast radius at all — it
+only closes the "next qnap" failure mode going forward.
+
+First pass at the new expression (following the exact target given)
+dropped the fingerprint-pinning clause that was already live
+(`allowed_client_cert_fingerprints`, 5 pinned device certs) — caught
+before applying and asked about explicitly, since silently narrowing
+"any pinned device" to "any verified device from this CA" is a real
+loosening riding along with the tightening, not something to assume.
+Confirmed: keep both. Final expression combines zone-wide default-deny
+with the existing fingerprint clause, unchanged from before.
+
 ## What's true now
 
 One variable (`tunneled_hostnames` in `variables.tf`) drives four
