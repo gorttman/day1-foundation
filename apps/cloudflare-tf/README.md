@@ -357,17 +357,32 @@ anywhere, by enrolling a device in Cloudflare WARP. Three resources:
   email at an address they type in could enroll a device and see this
   same split-tunnel config.
 
-**One-time import required** before the first apply: the device default
-profile is a singleton that already existed on the account before this
-Terraform did (every account has exactly one). Same pattern as the WAF
-ruleset in HISTORY.md #6 — creating it fresh would collide with the
-existing one.
-```bash
-terraform import cloudflare_zero_trust_device_default_profile.this '<account_id>'
+**No manual import step.** The device default profile is a singleton
+that already existed on the account before this Terraform did (every
+account has exactly one) — same class of problem as the WAF ruleset in
+HISTORY.md #6, which needed a one-off `terraform import` CLI command
+run by hand before its first apply. This resource instead uses a
+declarative `import` block in `warp.tf`:
+```hcl
+import {
+  to = cloudflare_zero_trust_device_default_profile.this
+  id = var.account_id
+}
 ```
-(`account_id` = `var.account_id`'s value, not a secret — see
-`variables.tf`.) The tunnel route and the Access app are both brand new,
-no import needed for either.
+On every `apply`, this is a no-op if the resource is already in state
+(the normal case). If state is ever empty — a from-scratch rebuild of
+the shared Postgres backend, not just a routine sync — `apply` adopts
+the existing Cloudflare object automatically instead of failing on
+"already exists." No command to remember, run once, or ever repeat by
+hand. The tunnel route and the Access app are both brand new resources,
+no import needed for either — this pattern is only relevant for
+resources that predate Terraform managing them.
+
+Worth retrofitting the WAF ruleset, DNS records, and mTLS hostname list
+(HISTORY.md #6/#7/#11) with the same `import` block pattern at some
+point — those still rely on someone remembering the manual command from
+HISTORY.md if the state backend is ever rebuilt from scratch. Out of
+scope for this change, but a real gap.
 
 **Client-side enrollment** (manual, once per device, same treatment as
 the client certs above — nothing to codify here):

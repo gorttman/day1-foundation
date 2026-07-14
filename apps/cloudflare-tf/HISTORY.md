@@ -284,6 +284,24 @@ way: `exclude = []` still counts as "exclude is set," so it collided
 with `include` in the same validate pass and had to be dropped entirely
 rather than zeroed out.
 
+Initial plan was to import the pre-existing device default profile the
+same way #6/#7/#11 did — a one-off `terraform import` CLI command run
+by hand before the first apply. Pushed back on: that's a manual step
+living only in this file's prose, not in code — if the Postgres state
+backend were ever rebuilt from scratch, nothing would remind a future
+apply to run it again, and `apply` would just fail on "already exists"
+the way #6 originally did. Fixed by using a declarative `import` block
+in `warp.tf` instead (stable since Terraform 1.5, this repo already
+requires `>= 1.7.0`): a no-op when the resource is already in state,
+an automatic adopt-instead-of-create when it isn't. Confirmed the
+syntax parses with the same local `terraform validate` container
+before proposing it. `cloudflare_zero_trust_device_default_profile` is
+the first resource in this project to use this pattern — the WAF
+ruleset, DNS records, and mTLS hostname list (#6/#7/#11) still rely on
+someone finding and re-running the manual command from this file if
+their state ever needs rebuilding; worth retrofitting them the same
+way at some point.
+
 ## What's true now
 
 One variable (`tunneled_hostnames` in `variables.tf`) drives four

@@ -27,8 +27,11 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_route" "k8smaster" {
   comment    = "k8smaster - private SSH access via WARP"
 }
 
-# Pre-existing singleton (one per account, created outside Terraform) -
-# import required before the first apply: see README.md.
+# Pre-existing singleton (one per account, created outside Terraform).
+# The import block below adopts it declaratively: a no-op if it's already
+# in state (the normal case), an automatic adopt-instead-of-create if
+# state is ever empty (a from-scratch rebuild of the Postgres backend) -
+# no separate manual `terraform import` command to remember or re-run.
 resource "cloudflare_zero_trust_device_default_profile" "this" {
   account_id = var.account_id
 
@@ -36,6 +39,11 @@ resource "cloudflare_zero_trust_device_default_profile" "this" {
     address     = "${var.k8smaster_lan_ip}/32"
     description = "k8smaster - private SSH access"
   }]
+}
+
+import {
+  to = cloudflare_zero_trust_device_default_profile.this
+  id = var.account_id
 }
 
 resource "cloudflare_zero_trust_access_application" "warp_enrollment" {
