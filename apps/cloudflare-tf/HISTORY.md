@@ -231,6 +231,77 @@ Argo CD sync-lag workaround as always (hard refresh + explicit
 `.operation.sync` patch) — everything else was genuinely just "add a
 hostname to a variable," as originally intended.
 
+### 14. WARP client access for SSH to k8smaster
+
+Separate from the tunneled-hostname/mTLS system above: added
+`warp.tf` so `gorttman@i3sec.com.au` and `brett@i3sec.com.au` can SSH to
+k8smaster (`192.168.2.10`) from anywhere via Cloudflare WARP, ahead of
+travel. Distinct from #10's abandoned k8smaster Access App (browser-
+terminal `self_hosted` type, built manually, empty policy list, deleted)
+— this is the WARP-client model instead: WARP just supplies network
+reachability to a private IP, actual SSH auth is still the existing key,
+unchanged.
+
+Key discovery mid-build: read the live device default profile via a
+throwaway diagnostic pod before writing any `.tf`, and found the
+account's default WARP split-tunnel config already excludes
+`192.168.0.0/16` (standard stock default, so WARP doesn't swallow LAN
+traffic for typical use). A private network route on the tunnel alone
+wouldn't be enough — the device profile's split-tunnel setting decides
+what a WARP-enrolled client actually sends through the tunnel in the
+first place. Provider schema research (pulled locally via
+`terraform providers schema -json` against the pinned `~> 5.0` version,
+rather than trusting training-data memory of the resource shape) turned
+up the actual constraint: `include` and `exclude` on
+`cloudflare_zero_trust_device_default_profile` are mutually exclusive —
+the API rejects both being set. Punching a single `/32` hole in the
+existing `/16` exclude wasn't an option; the only ways to get k8smaster
+routed were (a) enumerate ~16 complement CIDRs to exclude "the `/16`
+minus one address," or (b) switch the whole profile to `include` mode
+with just that one address. Went with (b): this account has no other
+Zero Trust use case yet (no Access apps existed at all before this —
+Access Apps list came back empty), so "everything except k8smaster
+bypasses WARP" has no other traffic to break. Documented as a real
+trade-off to revisit in the README if that ever stops being true.
+
+Also added a `warp`-type `cloudflare_zero_trust_access_application`
+with an inline policy restricting *enrollment* to those two emails —
+without it, the account's only IdP (`onetimepin`, no domain
+restriction) would let anyone who can receive mail at a self-typed
+address enroll a device and inherit this same split-tunnel config.
+
+Confirmed via the Cloudflare provider's own `docs/resources/*.md` at
+the exact pinned tag (`v5.22.0`, fetched from GitHub, not the JS-
+rendered registry site which returned no usable content) — the
+`warp` value for `type`, the mutually-exclusive `include`/`exclude`
+constraint, the attribute-assignment HCL syntax (`include = [{...}]`,
+not block syntax) for nested-attribute schemas, and the device default
+profile's import ID format (`<account_id>`, no separate profile ID
+needed). Validated locally with `terraform validate` (via a throwaway
+`hashicorp/terraform` Docker container, `-backend=false`, dummy token/
+zone_id) before ever proposing an apply — caught one real mistake this
+way: `exclude = []` still counts as "exclude is set," so it collided
+with `include` in the same validate pass and had to be dropped entirely
+rather than zeroed out.
+
+Initial plan was to import the pre-existing device default profile the
+same way #6/#7/#11 did — a one-off `terraform import` CLI command run
+by hand before the first apply. Pushed back on: that's a manual step
+living only in this file's prose, not in code — if the Postgres state
+backend were ever rebuilt from scratch, nothing would remind a future
+apply to run it again, and `apply` would just fail on "already exists"
+the way #6 originally did. Fixed by using a declarative `import` block
+in `warp.tf` instead (stable since Terraform 1.5, this repo already
+requires `>= 1.7.0`): a no-op when the resource is already in state,
+an automatic adopt-instead-of-create when it isn't. Confirmed the
+syntax parses with the same local `terraform validate` container
+before proposing it. `cloudflare_zero_trust_device_default_profile` is
+the first resource in this project to use this pattern — the WAF
+ruleset, DNS records, and mTLS hostname list (#6/#7/#11) still rely on
+someone finding and re-running the manual command from this file if
+their state ever needs rebuilding; worth retrofitting them the same
+way at some point.
+
 ## What's true now
 
 One variable (`tunneled_hostnames` in `variables.tf`) drives four
