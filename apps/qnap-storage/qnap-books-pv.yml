@@ -1,7 +1,14 @@
-# Static NFS PersistentVolume onto the QNAP (valinor-m) public_root
-# share. One PV per QNAP directory - see README.md for the pattern and
-# the prerequisites (FQDN resolution on every node via
-# day0-infra-build's qnap_client role; directory chowned 1000:1000).
+# Static NFS PersistentVolume onto a QNAP (valinor-m) share. One PV per
+# QNAP directory - see README.md for the pattern and the prerequisites
+# (FQDN resolution on every node via day0-infra-build's qnap_client
+# role; directory chowned 1000:1000).
+#
+# path is a bare top-level export (/books), NOT /public_root/books -
+# confirmed via showmount -e and a real test mount (2026-07-14). The
+# /public_root/ prefix stopped resolving at some point after this PV
+# was first created; the existing mount kept working on a stale cached
+# handle until the pod was restarted, so it looked healthy in
+# `kubectl get pods` while actually failing every read.
 #
 # storageClassName is a deliberate non-provisioned marker class: it
 # stops the default local-path provisioner from intercepting claims and
@@ -25,4 +32,4 @@ spec:
     - noatime
   nfs:
     server: qnap.i3sec.com.au
-    path: /public_root/books
+    path: /books

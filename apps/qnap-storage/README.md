@@ -1,14 +1,24 @@
 # qnap-storage - static NFS PersistentVolumes on the QNAP
 
-Media/library storage for apps, served from the QNAP (valinor-m)
-`public_root` share (11T). One static PV per QNAP directory; each app
-claims its slice with a PVC (`storageClassName: qnap-static` +
-`volumeName`). kubelet mounts the NFS export on whichever node the pod
-runs - storage follows the container, no host mounts involved.
+Media/library storage for apps, served from the QNAP (valinor-m). One
+static PV per QNAP directory; each app claims its slice with a PVC
+(`storageClassName: qnap-static` + `volumeName`). kubelet mounts the
+NFS export on whichever node the pod runs - storage follows the
+container, no host mounts involved.
+
+Export paths are bare top-level names (`/books`, `/photos`, ...), not
+`/public_root/<name>` - confirmed via `showmount -e qnap.i3sec.com.au`
+and a real test mount (2026-07-14). qnap-books originally used
+`/public_root/books`; that stopped resolving at some point after the
+PV was created; the existing kernel-level mount kept the pod looking
+healthy on a stale cached handle while every actual read was failing.
+Fixed 2026-07-14 - see day0-infra-build's `qnap_client` role for the
+equivalent host-level mounts, which is where the wrong path was
+originally caught.
 
 | PV | QNAP path | Consumer |
 |---|---|---|
-| qnap-books | /public_root/books | kavita (ro) |
+| qnap-books | /books | kavita (ro) |
 
 Planned as apps get their config pass: media (jellyfin + sonarr/radarr),
 downloads (sabnzbd/jdownloader), paperless, immich, photos.
