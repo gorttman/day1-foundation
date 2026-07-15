@@ -50,7 +50,7 @@ variable "tunneled_hostnames" {
     "homeassistant.i3sec.com.au" = {}
     "qnap.i3sec.com.au" = {
       origin        = "https://192.168.2.30:443"
-      no_tls_verify = true # assumption: QNAP's web UI likely uses a self-signed/vendor cert - confirm and drop this if it's actually a valid cert
+      no_tls_verify = true # confirmed 2026-07-15: QNAP (QTS) serves a self-signed cert even after regenerating it with a correct CN/SAN for qnap.i3sec.com.au - cloudflared has no way to verify it against a public CA, so this stays true. Unrelated to the iPad LAN-side cert trust fix from the same date (see dns-conf/pihole/README.md) - that only covers direct browser access, not cloudflared's origin connection.
     }
   }
 }
