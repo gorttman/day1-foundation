@@ -37,3 +37,28 @@ downloads (sabnzbd/jdownloader), paperless, immich, photos.
   SQLite (pihole gravity.db incident). Only media/library content.
 - Add new directories as separate PVs, ro where the app only reads.
 - `capacity.storage` is informational for NFS - not enforced.
+
+## inbox-router directories (2026-07-16)
+
+`inbox-router` (day2-services, prompt 2 of the inbox-router series)
+needs write access to `/inbox` and `/books`, not read-only - it
+doesn't fit the one-PV-per-directory/ro-consumer pattern above, so it
+mounts these two exports directly via a pod-level `nfs:` volume in
+its own CronJob (no PV/PVC), rather than adding a second static PV
+alongside `qnap-books`. A static PV binds 1:1 to a single PVC, and
+`qnap-books` is already bound to kavita's - a second consumer needing
+the same export has to go around that layer, not through it.
+
+Created and chowned `10001:10001` (the inbox-router image's non-root
+UID/GID) on 2026-07-16:
+- `/inbox/books` - explicit-dir source for bulk book uploads
+- `/inbox/quarantine` - router's quarantine sidecar location
+- `/books/import` - router's write destination for the books route
+
+Also re-chowned the `/inbox` and `/books` export roots themselves
+from `root:root` to `10001:10001` (mode unchanged at `755`), so the
+non-root container can create further subdirectories under them
+later without another manual step. `/books`'s "already chowned
+1000:1000" prerequisite above turned out not to hold in practice -
+it was actually `root:root` - but it didn't break kavita since `755`
+already grants read to everyone regardless of owner.
