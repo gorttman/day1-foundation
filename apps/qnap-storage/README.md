@@ -62,3 +62,19 @@ later without another manual step. `/books`'s "already chowned
 1000:1000" prerequisite above turned out not to hold in practice -
 it was actually `root:root` - but it didn't break kavita since `755`
 already grants read to everyone regardless of owner.
+
+## books-pipeline directories (2026-07-17)
+
+`books-pipeline` (day2-services, prompt 4) needs its own subdirectories
+under `/books`, alongside the `import/` created above - `library/` is
+not a separate QNAP export (confirmed against the full export list in
+day0-infra-build's `qnap_client` role: only `/books` exists at the top
+level), it's a subdirectory of `/books` like everything else here.
+Created and chowned `10001:10001`:
+- `/books/library` - promoted-book root
+- `/books/library/books` - EPUB/PDF library
+- `/books/library/comics` - CBZ/CBR library, routed here unconditionally
+  by format, never on content judgment
+- `/books/quarantine` - books-pipeline's own quarantine (distinct from
+  `/inbox/quarantine` above - that one's inbox-router's, this one's
+  books-pipeline's, different pipeline stage)
