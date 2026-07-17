@@ -78,3 +78,14 @@ Created and chowned `10001:10001`:
 - `/books/quarantine` - books-pipeline's own quarantine (distinct from
   `/inbox/quarantine` above - that one's inbox-router's, this one's
   books-pipeline's, different pipeline stage)
+
+## pdf-triage directory (2026-07-17)
+
+`pdf-triage` (day2-services, prompt 6) needs `/inbox/triage` - the
+inbox-router routes undeclared bare-root PDFs here (its `routes.yaml`
+`pdf-to-triage` rule), since a bare PDF is ambiguous between books and
+Paperless. Created and chowned `10001:10001`. Failures quarantine to
+the existing `/inbox/quarantine`, not a new location - a triage failure
+means "couldn't confidently classify," which is a general failure, not
+a books-specific one, so it belongs with inbox-router's quarantine, not
+books-pipeline's.
