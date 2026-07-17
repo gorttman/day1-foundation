@@ -18,10 +18,44 @@ originally caught.
 
 | PV | QNAP path | Consumer |
 |---|---|---|
-| qnap-books | /books | kavita (ro) |
+| qnap-books | /books | calibre-web (rw) - was kavita (ro) until 2026-07-17 |
 
 Planned as apps get their config pass: media (jellyfin + sonarr/radarr),
 downloads (sabnzbd/jdownloader), paperless, immich, photos.
+
+## Handing a static PV from one app to another
+
+Happened for real the first time on 2026-07-17 (kavita → calibre-web,
+see `day2-services/apps/calibre-web/README.md` and homelab-book chapter
+002 for the full story) - worth recording as a general procedure since
+every PV here has `persistentVolumeReclaimPolicy: Retain`, and this
+will happen again.
+
+Deleting the old app's PVC does **not** make the PV `Available` for a
+new claim - `Retain` means exactly what it says. The PV goes to
+`Released`, still carrying a `claimRef` pointing at the now-deleted
+PVC. A new PVC targeting the same PV by `volumeName` sits in `Pending`
+against that stale reference indefinitely - looks identical to a
+permissions or export problem in `kubectl describe pvc` until you
+check `kubectl get pv <name> -o yaml` and notice `status.phase:
+Released` with a `claimRef` still attached. Clear it with:
+
+```
+kubectl patch pv <name> --type merge -p '{"spec":{"claimRef": null}}'
+```
+
+One further wrinkle if the old app is being removed via Argo CD rather
+than just having its PVC deleted directly: confirm the old app's PVC
+(and everything else) is *actually* gone, not just orphaned. Deleting
+an Argo CD `Application` object only cascades into deleting its managed
+resources if that `Application` carries the
+`resources-finalizer.argocd.argoproj.io` finalizer - without it,
+removing the `Application` from a parent app-of-apps just orphans
+everything underneath, silently still running. `kubectl get pvc -A |
+grep <old-pvc-name>` before attempting the claimRef patch is the way to
+catch this - patching the PV while the "deleted" app's PVC is still
+technically live and bound just fails silently (nothing changes,
+because the PV isn't actually free yet).
 
 ## Prerequisites (already in place)
 - `qnap.i3sec.com.au` resolves to the wired face (192.168.1.30) on
