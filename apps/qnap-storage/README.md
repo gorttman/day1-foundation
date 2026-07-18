@@ -147,3 +147,43 @@ the existing `/inbox/quarantine`, not a new location - a triage failure
 means "couldn't confidently classify," which is a general failure, not
 a books-specific one, so it belongs with inbox-router's quarantine, not
 books-pipeline's.
+
+## inbox/books ownership standardized to root:users, 2775 (2026-07-18)
+
+`/inbox`, `/inbox/books`, `/inbox/quarantine`, `/inbox/triage`, `/books`,
+`/books/import`, `/books/library`, `/books/library/{books,comics}`, and
+`/books/quarantine` were all originally chowned `10001:10001` (an
+invented UID/GID that matched nothing else, chosen only so
+`inbox-router`/`books-pipeline`/`calibre-web` agreed with each other).
+
+Re-standardized after hitting the same failure twice in one session:
+a human (gorttman) copying files in directly - a real ~43,000-file
+personal library, dropped straight into `/books/import` - changed
+`/mnt/books`'s root ownership to their own login, silently locking out
+the `10001`-owned containers' write access. Exclusive single-UID
+ownership doesn't survive a human touching the export directly, which
+was always going to happen on a shared home NAS.
+
+Fixed by switching to **`root:users` (GID 100), mode `2775`** on all of
+the directories above:
+- `root` ownership is free to write regardless (every export here has
+  `no_root_squash`), so this isn't giving anything up compared to the
+  old scheme.
+- `100`/`users` is gorttman's own real supplementary group on this
+  host (confirmed via `id`/`getent group`) - not invented, and already
+  the group ownership the user's own bulk copy happened to land with.
+- The setgid bit (`2`, not just `775`) is the actual fix for the
+  recurring failure: any new file or directory created under these
+  paths - by a human's `cp`/`rsync`, or by a container - automatically
+  inherits group `users`, rather than group ownership depending on
+  whichever UID happened to create it.
+- `inbox-router` and `books-pipeline` were rebuilt (`v0.2.0`) to run as
+  UID `1000` / GID `100` instead of the invented `10001:10001`, matching
+  this and the pre-existing day0/day1 convention (every linuxserver-based
+  app in this cluster already runs `PUID=1000`) at the same time -
+  see `day2-services/images/{inbox-router,books-pipeline}/Dockerfile`.
+
+Scoped to `inbox`/`books` only - the other QNAP exports (photos, media,
+paperless, etc.) have their own existing schemes, untouched here.
+Rolling this convention out further is a separate decision, not implied
+by this change.
