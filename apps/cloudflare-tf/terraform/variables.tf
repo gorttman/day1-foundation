@@ -48,6 +48,13 @@ variable "tunneled_hostnames" {
     "books.i3sec.com.au"         = {}
     "vscode.i3sec.com.au"        = {}
     "homeassistant.i3sec.com.au" = {}
+    # obsidian.i3sec.com.au itself is a redirect-only host (see
+    # day2-services apps/obsidian/obsidian-public-ingress.yml) - the
+    # actual noVNC/websockify traffic lands on novnc.i3sec.com.au, which
+    # must be tunneled too or the redirect target is unreachable from
+    # outside the LAN. Both added together 2026-07-18, not independently.
+    "obsidian.i3sec.com.au"      = {}
+    "novnc.i3sec.com.au"         = {}
     "qnap.i3sec.com.au" = {
       origin        = "https://192.168.2.30:443"
       no_tls_verify = true # confirmed 2026-07-15: QNAP (QTS) serves a self-signed cert even after regenerating it with a correct CN/SAN for qnap.i3sec.com.au - cloudflared has no way to verify it against a public CA, so this stays true. Unrelated to the iPad LAN-side cert trust fix from the same date (see dns-conf/pihole/README.md) - that only covers direct browser access, not cloudflared's origin connection.
