@@ -384,6 +384,19 @@ always sealed 5 real fingerprints via `cloudflare-tf-secrets`, so empty
 has never actually been the live behavior. Comment fixed to stop
 implying otherwise.
 
+### 17. obsidian.i3sec.com.au removed (2026-07-19)
+
+The redirect-only pairing from #16 didn't last a full day past this
+doc's own advice about testing too early — obsidian itself was replaced
+entirely with the official headless Obsidian Sync client the very next
+day (day2-services `apps/obsidian`), which has no ingress, no listening
+port, and nothing to redirect from anymore. Removed `obsidian.i3sec.com.au`
+from `tunneled_hostnames`; `novnc.i3sec.com.au` stays, since it's still
+tunneled for the unrelated `mac` target — #16's own point about checking
+whether a hostname is *actually* that app's own backend before assuming
+it can be removed alongside a sibling applies here too, just in the
+opposite direction.
+
 ## What's true now
 
 One variable (`tunneled_hostnames` in `variables.tf`) drives four
