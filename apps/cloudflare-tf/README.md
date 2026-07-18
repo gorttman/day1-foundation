@@ -278,6 +278,15 @@ landmines are.
    This one line drives all four effects (tunnel route, DNS record, WAF
    protection, mTLS cert-request setting).
 
+   **Check what the internal Ingress actually does before assuming one
+   hostname is enough** — `obsidian.i3sec.com.au` (added alongside
+   `novnc.i3sec.com.au`, HISTORY.md #16) turned out to be a pure
+   redirect stub to a different in-cluster hostname, not a real
+   backend. If an app's internal Ingress uses a redirect
+   Middleware/annotation instead of routing to its own Service, its
+   redirect target needs tunneling too, or the public link is a dead
+   end.
+
 2. **Give the service a public-facing `ingressClassName: nginx` Ingress**
    — its existing internal ingress (if any) is almost certainly on
    `ingressClassName: traefik`, which Cloudflare's tunnel never reaches
