@@ -14,6 +14,19 @@
 # storageClassName is a deliberate non-provisioned marker class: it
 # stops the default local-path provisioner from intercepting claims and
 # lets PVCs bind these by class + volumeName.
+#
+# nfs.server is the literal management-network IP (192.168.1.30), not
+# qnap.i3sec.com.au, unlike qnap-books - deliberate, not a copy/paste
+# inconsistency. Pi-hole serves that FQDN's WLAN face (192.168.2.30) to
+# normal clients; nodes are meant to resolve it to the wired face via a
+# per-node /etc/hosts pin (day0-infra-build's qnap_client role). On
+# k8smaster that pin is confirmed correct, and NFSv4 trunking papers over
+# it in practice regardless (the live TCP session ends up on 192.168.1.30
+# even when the recorded mount source shows 192.168.2.30). But this PV's
+# consumer (obsidian) runs on pinode-01, a diskless netboot node whose
+# /etc/hosts is a separately-synced overlay with no confirmed-live check
+# behind it - pinning the IP directly removes the dependency on that
+# overlay ever having actually landed.
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -32,5 +45,5 @@ spec:
     - vers=4
     - noatime
   nfs:
-    server: qnap.i3sec.com.au
+    server: 192.168.1.30
     path: /vault/obsidian
