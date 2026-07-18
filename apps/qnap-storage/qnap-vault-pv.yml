@@ -1,0 +1,36 @@
+# Static NFS PersistentVolume onto a QNAP (valinor-m) share. One PV per
+# QNAP directory - see README.md for the pattern and the prerequisites
+# (FQDN resolution on every node via day0-infra-build's qnap_client role).
+#
+# path is a subdirectory of the /vault top-level export (confirmed via
+# showmount -e qnap.i3sec.com.au), not a separate export - same pattern as
+# /books/library etc.
+#
+# accessModes is ReadWriteOnce, not ReadWriteMany like every other PV in
+# this directory - deliberate. Obsidian is single-replica
+# (strategy: Recreate) with no multi-writer use case for a single vault,
+# so RWX would just be a wider claim than the workload actually needs.
+#
+# storageClassName is a deliberate non-provisioned marker class: it
+# stops the default local-path provisioner from intercepting claims and
+# lets PVCs bind these by class + volumeName.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: qnap-vault
+  labels:
+    app.kubernetes.io/part-of: qnap-storage
+    argocd.argoproj.io/managed-by: argocd
+spec:
+  capacity:
+    storage: 10Gi  # informational for NFS; not enforced
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: qnap-static
+  mountOptions:
+    - vers=4
+    - noatime
+  nfs:
+    server: qnap.i3sec.com.au
+    path: /vault/obsidian

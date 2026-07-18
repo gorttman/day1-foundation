@@ -19,6 +19,7 @@ originally caught.
 | PV | QNAP path | Consumer |
 |---|---|---|
 | qnap-books | /books | calibre-web (rw) - was kavita (ro) until 2026-07-17 |
+| qnap-vault | /vault/obsidian | obsidian (rw), RWO not RWX - see obsidian directories note below |
 
 Planned as apps get their config pass: media (jellyfin + sonarr/radarr),
 downloads (sabnzbd/jdownloader), paperless, immich, photos.
@@ -112,6 +113,29 @@ Created and chowned `10001:10001`:
 - `/books/quarantine` - books-pipeline's own quarantine (distinct from
   `/inbox/quarantine` above - that one's inbox-router's, this one's
   books-pipeline's, different pipeline stage)
+
+## obsidian directory (2026-07-18)
+
+`obsidian` (day2-services) previously ran its vault PVC on the `nfs-client`
+StorageClass, which - not obvious from the name - is backed by k8smaster's
+own local-disk NFS export (`192.168.1.10:/srv/nfs/syslog-store`, meant for
+syslog archival). Wrong home under the general rule this repo already
+follows: data belongs on the QNAP, only genuinely cluster-internal state
+belongs on k8smaster's own disk. Moved to `qnap-vault` (`/vault/obsidian`)
+as the first real application of that rule - see homelab-book for the
+fuller writeup once it exists.
+
+Created `/vault/obsidian` and copied the existing (32K, just the seeded
+`.obsidian/` config, no real notes yet) vault content across before
+switching the PVC over, so the vault's init container's seed-if-missing
+check no-ops on first boot against the new volume instead of re-seeding.
+
+Unlike every other PV here, this one is RWO, not RWX - obsidian is
+single-replica with no multi-writer use case, so claiming RWX would just
+be a wider grant than the workload needs. The old local-disk PV
+(`pvc-fd0d8910-...`) was left `Released` rather than deleted; the stale
+copy under `/srv/nfs/syslog-store/` can be cleaned up manually once the
+QNAP copy has proven stable for a while.
 
 ## pdf-triage directory (2026-07-17)
 
