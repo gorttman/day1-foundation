@@ -3,3 +3,4 @@ kind: Kustomization
 
 resources:
   - qnap-books-pv.yml
+  - qnap-vault-pv.yml
