@@ -48,12 +48,11 @@ variable "tunneled_hostnames" {
     "books.i3sec.com.au"         = {}
     "vscode.i3sec.com.au"        = {}
     "homeassistant.i3sec.com.au" = {}
-    # obsidian.i3sec.com.au itself is a redirect-only host (see
-    # day2-services apps/obsidian/obsidian-public-ingress.yml) - the
-    # actual noVNC/websockify traffic lands on novnc.i3sec.com.au, which
-    # must be tunneled too or the redirect target is unreachable from
-    # outside the LAN. Both added together 2026-07-18, not independently.
-    "obsidian.i3sec.com.au"      = {}
+    # obsidian.i3sec.com.au removed 2026-07-19: obsidian was replaced with
+    # the official headless Sync client (day2-services apps/obsidian),
+    # which has no ingress/listening port at all, so there's nothing left
+    # to publicly expose. novnc.i3sec.com.au stays - still tunneled for
+    # the unrelated `mac` target.
     "novnc.i3sec.com.au"         = {}
     "qnap.i3sec.com.au" = {
       origin        = "https://192.168.2.30:443"
