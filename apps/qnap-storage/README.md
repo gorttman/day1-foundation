@@ -62,7 +62,11 @@ because the PV isn't actually free yet).
 - `qnap.i3sec.com.au` resolves to the wired face (192.168.1.30) on
   every node - managed by day0-infra-build `qnap_client` role
   (`--tags manage_qnap`). Pi-hole serves the WLAN face to normal
-  clients; split view is deliberate.
+  clients; split view is deliberate. **Caveat as of 2026-07-19:**
+  confirmed correct on k8smaster, not confirmed on diskless netboot
+  nodes (pinode-01 etc, whose `/etc/hosts` is a separately-synced
+  overlay) - see the qnap-vault IP-pin note below for why `qnap-vault`
+  now sidesteps this entirely rather than relying on it.
 - QNAP-side: the share's NFS host ACL must allow the node IPs, and the
   directory must be chowned 1000:1000 (apps run PUID/PGID 1000; the
   export does not root-squash, so chown works from any root mount).
@@ -187,3 +191,39 @@ Scoped to `inbox`/`books` only - the other QNAP exports (photos, media,
 paperless, etc.) have their own existing schemes, untouched here.
 Rolling this convention out further is a separate decision, not implied
 by this change.
+
+## qnap-vault pinned to the management IP, not the FQDN (2026-07-19)
+
+`qnap-vault`'s `nfs.server` was `qnap.i3sec.com.au` (same as every other
+PV here) until this. Investigating an apparent WLAN-vs-management-network
+mismatch turned up real NFSv4 trunking behaviour, not a misconfiguration:
+on k8smaster, `mount`/`/proc/mounts` displays the mount source as
+`192.168.2.30:/vault` (the WLAN face Pi-hole serves), but the live
+established TCP session and the `addr=` mount option both confirm the
+actual RPC traffic already lands on `192.168.1.30` (the wired/management
+face) regardless - the server-address discovery baked into NFSv4 session
+setup silently corrects for it after the initial hostname resolution.
+
+That's fine on k8smaster, where the `qnap_client` role's `/etc/hosts` pin
+is confirmed present. It's an open question on `pinode-01` (this PV's
+actual consumer, since `obsidian` runs there) - a diskless netboot node
+whose `/etc/hosts` is a separately-synced per-node overlay with no
+confirmed-live check behind it, the same class of "the mechanism should
+have run but nobody's verified it actually did" gap this project has
+already hit more than once (see the sealed-secrets backup history in
+day0-infra-build's `rebuild-gap-audit.md`, item 2).
+
+Rather than trust the overlay, `qnap-vault-pv.yml`'s `nfs.server` is now
+the literal `192.168.1.30`. Confirmed after the change, directly on
+pinode-01 (`ssh -i ~/.ssh/pinode_cluster_ed25519 pinode-01`, checking
+`/proc/mounts`): the kubelet-managed mount now reads `192.168.1.30:/vault/obsidian`
+with no DNS/hosts step involved at all. `nfs.server` is an immutable PV
+spec field, so this required the same delete-PV/PVC-and-let-ArgoCD-recreate
+dance as the original QNAP migration - no data was at risk (`Retain`
+policy, same underlying export, no content actually moved this time).
+
+Scoped to `qnap-vault` only. `qnap-books` and the rest still use the FQDN
+form and haven't shown any problem doing so (their consumers - calibre-web,
+books-pipeline - may or may not run on diskless nodes at any given
+schedule; worth the same IP-pin treatment if one ever turns out to,
+but not applied speculatively here).
