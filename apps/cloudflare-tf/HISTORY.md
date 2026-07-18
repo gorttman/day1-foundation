@@ -337,6 +337,53 @@ loosening riding along with the tightening, not something to assume.
 Confirmed: keep both. Final expression combines zone-wide default-deny
 with the existing fingerprint clause, unchanged from before.
 
+### 16. obsidian + novnc, and a false alarm mid-apply
+
+Second real test of the runbook (after #13's homeassistant) on an app
+that isn't its own backend: obsidian's own hostname is a redirect-only
+stub (its internal Ingress 302s unconditionally to novnc's websockify
+UI, picking a token) — the actual traffic lands on `novnc.i3sec.com.au`.
+Both hostnames had to be added to `tunneled_hostnames` together, or the
+redirect target would be a dead public link. Otherwise routine: no
+forward-auth of any kind on either (same as homeassistant, #13) — access
+is the zone-wide mTLS gate alone, nothing app-level.
+
+One new wrinkle: this is the first `ingress-nginx`-fronted websocket app
+in the cluster (homeassistant/n8n's websockets are both Traefik-side,
+which needed no extra annotation). `ingress-nginx` proxies websockets
+fine with no special config, but its default 60s `proxy-read`/
+`proxy-send-timeout` would silently drop an idle noVNC session
+mid-session — bumped both to 3600s on `novnc-public-ingress.yml`, not
+scientifically tuned, just long enough that a normal remote-desktop
+session won't get cut off.
+
+**False alarm, not a bug**: hit the Cloudflare WAF "you have been
+blocked" page testing the new hostname right after pushing, before
+double-checking the apply had actually finished. Re-ran a read-only
+`terraform plan`/`state show` afterward (throwaway diagnostic pod, same
+pattern as #15) against the live API and confirmed both hostnames were
+correctly present in
+`cloudflare_certificate_authorities_hostname_associations.mtls_hosts` —
+`0 to add` on the plan, config was correct. The block was real but
+transient: requests hit the zone-wide default-deny rule (#15) in the
+narrow window where the tunnel/DNS resources for a new hostname can
+land slightly before the mTLS hostname-association resource does within
+the same `apply`, and/or Safari's documented per-hostname client-cert
+caching (see `dns-conf`'s split-horizon fix notes) kept reusing a
+"sent no certificate" decision from that first failed attempt. Fixed
+itself on retry after clearing Safari's site data for the domain. Worth
+remembering for the next hostname addition: **don't test the very
+first request within the same minute as the merge** — or if you do and
+hit a block, verify server-side state directly before assuming
+something's actually wrong.
+
+Also caught and fixed while investigating: `variables.tf`'s
+`allowed_client_cert_fingerprints` description said "Empty = accept any
+cert... (current behavior)" — misleading, since this deployment has
+always sealed 5 real fingerprints via `cloudflare-tf-secrets`, so empty
+has never actually been the live behavior. Comment fixed to stop
+implying otherwise.
+
 ## What's true now
 
 One variable (`tunneled_hostnames` in `variables.tf`) drives four

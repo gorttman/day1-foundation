@@ -63,7 +63,7 @@ variable "tunneled_hostnames" {
 }
 
 variable "allowed_client_cert_fingerprints" {
-  description = "SHA-256 fingerprints of specific client certs permitted to pass the mTLS WAF rule. Empty = accept any cert issued under this account's CA (current behavior). Populate to pin to exact devices."
+  description = "SHA-256 fingerprints of specific client certs permitted to pass the mTLS WAF rule. Empty = accept any cert issued under this account's CA. This deployment always seals a real, non-empty list here (see cloudflare-tf-secrets / README.md's device table) - empty is only ever the default for a from-scratch bootstrap, not this cluster's live behavior."
   type    = list(string)
   default = []
 }
