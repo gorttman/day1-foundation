@@ -227,3 +227,30 @@ form and haven't shown any problem doing so (their consumers - calibre-web,
 books-pipeline - may or may not run on diskless nodes at any given
 schedule; worth the same IP-pin treatment if one ever turns out to,
 but not applied speculatively here).
+
+## downloads directories (2026-07-21)
+
+`arr-stack` (day2-services) needs `/downloads` (confirmed via
+`showmount -e qnap.i3sec.com.au` - a real, distinct top-level export,
+previously unused: empty, `root:root`, no PV declared anywhere). Same
+multi-consumer situation as `/inbox`/`/books` above - SABnzbd and
+LazyLibrarian are containers in arr-stack's own single shared pod, not
+separate PVC consumers - so this follows the established pattern for
+that case: a raw pod-level `nfs:` volume in `arr-stack-deployment.yml`
+(day2-services), no PV/PVC here, rather than forcing the one-PV-per-
+directory rule onto a case it doesn't fit.
+
+Created and chowned `1000:1000` (arr-stack's own PUID/PGID convention -
+**not** the `1000:100`/"users" convention `books-pipeline`/`calibre-web`
+use; the two app groups don't share a UID scheme, deliberately not
+unified here):
+- `/downloads/complete` - SABnzbd's general (non-books) completed-download
+  directory
+- `/downloads/incomplete` - SABnzbd's in-progress downloads
+
+No `/downloads/complete/books` subdirectory - the `books` SABnzbd
+category's completed-directory is configured to be `books-pipeline`'s
+own `import/` mount directly (a separate NFS export, `/books`, mounted
+read-write with `subPath: import` in the same pod), so a books download
+lands in the exact place `books-pipeline` already scans - zero extra
+hops, no sweep/copy step in between.
