@@ -54,6 +54,23 @@ variable "tunneled_hostnames" {
     # to publicly expose. novnc.i3sec.com.au stays - still tunneled for
     # the unrelated `mac` target.
     "novnc.i3sec.com.au"         = {}
+    # arr-stack (2026-07-21) - all seven public by explicit choice, not
+    # the default for this class of app (config-once/runs-in-background
+    # apps like these don't usually need it - see day2-services'
+    # arr-stack/README.md). Origins are all the shared ingress-nginx-
+    # controller default like everything else here; arr-stack itself is
+    # a k8s Deployment, same as any other app on this cluster - nothing
+    # special about it needing an origin override the way qnap
+    # (a physical NAS) does below. Still gated by the same zone-wide
+    # mTLS WAF rule as everything else - no separate app-level auth
+    # layered on for any of them, matching this cluster's norm.
+    "sonarr.i3sec.com.au"        = {}
+    "radarr.i3sec.com.au"        = {}
+    "prowlarr.i3sec.com.au"      = {}
+    "sabnzbd.i3sec.com.au"       = {}
+    "bazarr.i3sec.com.au"        = {}
+    "jdownloader.i3sec.com.au"   = {}
+    "lazylibrarian.i3sec.com.au" = {}
     "qnap.i3sec.com.au" = {
       origin        = "https://192.168.2.30:443"
       no_tls_verify = true # confirmed 2026-07-15: QNAP (QTS) serves a self-signed cert even after regenerating it with a correct CN/SAN for qnap.i3sec.com.au - cloudflared has no way to verify it against a public CA, so this stays true. Unrelated to the iPad LAN-side cert trust fix from the same date (see dns-conf/pihole/README.md) - that only covers direct browser access, not cloudflared's origin connection.
