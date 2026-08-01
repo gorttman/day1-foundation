@@ -328,3 +328,25 @@ migration needed. `paperless-data` and `paperless-media` are still on
 vault - real data on k8smaster's local-disk export instead of the QNAP)
 - not addressed here, flagged for a later pass since it's out of scope
 for a consumer-folder wiring change and neither volume is multi-writer.
+
+While wiring this up, hit the **exact same root-permission regression**
+`/books` had (above) on a second export: `/inbox`'s own root was
+`root:users 755` (no group-write, no setgid) even though every
+subdirectory under it (`books`, `quarantine`, `triage`) was correctly
+`2775`. This blocked creating the new `inbox/records` explicit-dir
+source as UID 1000/GID 100 (inbox-router's own identity). Fixed the
+same way: `chmod 2775 /inbox` plus creating `/inbox/records` with the
+same ownership. Two independent export roots hitting the identical
+regression means this is a pattern, not a one-off - **worth checking
+`ls -ld` on every QNAP export root** (`/books`, `/inbox`, `/paperless`,
+...) if a similarly-shaped failure shows up again, not just the one
+that already bit us.
+
+Also found live: Paperless's own container re-chowns whatever it finds
+under its mounted volumes to its own UID (1000) on every boot
+(`[init-folders] Running with root privileges, adjusting directories
+and permissions` in its startup log) - so the `root:users` ownership
+set here doesn't survive a Paperless restart, only the `2775` mode
+does. Functionally fine since inbox-router also runs as UID 1000 (so
+owner-match covers it), but worth knowing if group-based reasoning
+about this directory's permissions stops making sense later.
