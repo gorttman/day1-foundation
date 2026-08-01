@@ -254,3 +254,44 @@ own `import/` mount directly (a separate NFS export, `/books`, mounted
 read-write with `subPath: import` in the same pod), so a books download
 lands in the exact place `books-pipeline` already scans - zero extra
 hops, no sweep/copy step in between.
+
+## `/books` root permission regression (2026-08-01)
+
+Found live, after a multi-day QNAP outage that needed a physical power
+cycle to recover from: the `/books` export **root directory itself**
+had reverted to `root:users` `755` (no group-write), while every
+subdirectory underneath it remained correctly owned `books-pipeline:users`.
+`calibredb add`'s own startup does a case-sensitivity probe by writing
+a throwaway file directly into the library root (`calibre_test_case_sensitivity.txt`)
+before anything else runs - with the root non-writable by the
+`books-pipeline` container's UID (1000, group `users`), **every single
+`calibredb add` call failed outright**, and `books_pipeline.py`'s
+`promote()` correctly quarantined each one with the real
+`PermissionError` as the reason (working as designed - a legitimate,
+informative quarantine, not silent data loss).
+
+Scale found: 19,902 of 51,860 total quarantine entries (38%) carried
+this exact reason - almost certainly present since well before this
+specific outage, not something the outage itself caused (that many
+files couldn't have accumulated in the outage's short window alone).
+The QNAP crash/reboot is the best available explanation for *when* the
+root's permissions last changed, but the underlying fragility - a
+single directory's mode gating the entire pipeline's ability to add
+anything, with no monitoring on it - predates this incident.
+
+Fixed with `chmod 2775 /books` (setgid, matching every subdirectory's
+own `drwxr-sr-x` convention, done via a root-privileged one-off pod -
+this NFS export does not enforce `root_squash`, confirmed live).
+Recovered all 19,902 falsely-quarantined files by moving them back
+from `quarantine/` into `import/` (matching filename, reason sidecar
+removed) for a normal pipeline re-run - `promote()` always recomputes
+the library path from the file's own embedded metadata regardless of
+source location, so this was safe to do in bulk without preserving any
+of quarantine's own folder structure.
+
+If `calibredb add` ever starts failing on this same
+`PermissionError: .../calibre_test_case_sensitivity.txt` pattern
+again, check `/books`'s own root permissions first (`ls -ld /books`)
+before assuming a code-level bug - this exact regression is one hard
+NAS reboot away from recurring, and there's no automated check for it
+yet.
