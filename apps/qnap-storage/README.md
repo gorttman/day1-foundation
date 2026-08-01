@@ -22,7 +22,7 @@ originally caught.
 | qnap-vault | /vault/obsidian | obsidian (rw), RWO not RWX - see obsidian directories note below |
 
 Planned as apps get their config pass: media (jellyfin + sonarr/radarr),
-downloads (sabnzbd/jdownloader), paperless, immich, photos.
+immich, photos.
 
 ## Handing a static PV from one app to another
 
@@ -295,3 +295,36 @@ again, check `/books`'s own root permissions first (`ls -ld /books`)
 before assuming a code-level bug - this exact regression is one hard
 NAS reboot away from recurring, and there's no automated check for it
 yet.
+
+## paperless directory (2026-08-01)
+
+`paperless` (day2-services) needed a consumer folder both `inbox-router`
+and the Paperless-ngx webserver can reach - same multi-consumer
+situation as `/inbox`/`/books`/`/downloads` above, so it follows the
+same pattern: a raw pod-level `nfs:` volume in both
+`inbox-router-cronjob.yml` and `paperless-deployment.yml` (the latter
+via `subPath: consume`), no PV/PVC.
+
+`/paperless` was already a real, distinct top-level export (confirmed
+via `showmount -e qnap.i3sec.com.au`, alongside `/photos`, `/media`,
+`/immich`, `/cold` - all still unused/unplanned) - empty, `root:root`,
+no directories under it. Created `/paperless/consume`, chowned
+`root:users` (GID 100), mode `2775` - same setgid convention as
+`/books`'s post-2026-08-01 fix, applied from the start here rather than
+discovered the hard way a second time.
+
+Paperless's own container runs its actual process as root (confirmed
+live via `kubectl exec ... id`, not the `paperless` user its `/etc/passwd`
+defines) and self-chmods its mounted volumes to `777` on boot regardless
+of host-side ownership - so the `root:users 2775` directory permissions
+here matter for `inbox-router` (which writes as UID 1000/GID 100, not
+root) but aren't load-bearing for Paperless's own read/consume/delete
+side of this directory.
+
+The original `paperless-consume` PVC (`nfs-client` StorageClass) was
+confirmed empty before being removed in favour of this export - no data
+migration needed. `paperless-data` and `paperless-media` are still on
+`nfs-client` (the same "wrong home" pattern already fixed for Obsidian's
+vault - real data on k8smaster's local-disk export instead of the QNAP)
+- not addressed here, flagged for a later pass since it's out of scope
+for a consumer-folder wiring change and neither volume is multi-writer.
