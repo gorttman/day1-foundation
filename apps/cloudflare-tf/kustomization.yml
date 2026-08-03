@@ -18,4 +18,5 @@ configMapGenerator:
       - terraform/waf.tf
       - terraform/tunnel.tf
       - terraform/warp.tf
+      - terraform/email.tf
       - terraform/outputs.tf
