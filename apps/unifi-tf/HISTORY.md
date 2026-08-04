@@ -41,7 +41,30 @@ different operations with different risk profiles — adoption is a
 one-time hardware-pairing action, settings changes on an adopted device
 are what this whole app is for.
 
-## 3. Device icons: confirmed not manageable (2026-08-04)
+## 3. Finding the API key: wrong guesses, then the real location (2026-08-04)
+
+Two wrong menu-path guesses before landing on the right one, worth
+recording so nobody re-treads this: guessed "Settings → System" for the
+firmware version (wrong - firmware/UDM version and the Network
+application version are two different numbers shown in different
+places, and the one that actually matters for API-key auth eligibility
+is the **Network application version**, not the UDM/UniFi-OS version -
+confirmed 10.5.67 vs 9.0.108 minimum). Then guessed "Control Plane →
+Admins & Users → Create API Key" for the key itself - also wrong, and
+also based on stale/generic documentation, not this specific version.
+
+The real location, confirmed live: **Integrations** page inside the
+local UniFi Network application itself → Create New API Key. This is
+deliberately the **Network Application API key**, not a **Site Manager
+API key** (created separately at unifi.ui.com, routes through
+Ubiquiti's cloud) - the two are different credential systems for
+different connectivity models, and only the Network Application key
+works for a direct local-IP integration like this one. Created with no
+expiry (see README.md's Secrets section) since there's no rotation
+automation in this pipeline yet - an automated rotation integration is
+a real future idea, just not built as part of this initial setup.
+
+## 4. Device icons: confirmed not manageable (2026-08-04)
 
 Asked whether the UniFi UI's per-device-type icons (AP, switch, gateway
 pictograms) could be set via Terraform. Checked the `unifi_device`

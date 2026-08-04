@@ -7,9 +7,12 @@ the Cloudflare edge. Scope is "everything that can be" managed as code:
 networks/VLANs, WLANs, per-device radio/physical settings, firewall,
 port forwards, static routes, static DHCP reservations, user groups.
 
-**Status:** scaffolding only. `unifi-tf-app.yml` is deliberately **not**
-yet registered in `apps/kustomization.yml`, and `unifi-tf-sealedsecret.yml`
-doesn't exist yet — see "What's blocking a real apply" below.
+**Status:** credential sealed, app registered, **zero `unifi_*` resources
+yet** — this is stage 2 of the rollout (scaffold with zero resources,
+confirm the Job runs `init`/`plan`/`apply` cleanly end to end) once both
+this app's PR and the Postgres-onboarding PR are merged. The Postgres PR
+must merge first (or at the same time) — `terraform init` against the
+`pg` backend will fail if the `unifi_tf` role/database doesn't exist yet.
 
 ## Why this deviates from cloudflare-tf's risk profile
 
@@ -38,25 +41,32 @@ UniFi config as Terraform" in one PR:
 Do the first-ever apply of each new resource type at a low-usage time —
 even a no-op-intended change can trigger a brief AP reprovision.
 
-## What's blocking a real apply
+## Credential — sealed (2026-08-04)
 
-A UniFi API credential, created by hand (can't be scripted without one
-already existing — same one-time manual step `cloudflare-tf` needed for
-its Cloudflare API token):
+Network application version confirmed at 10.5.67 (the version that
+matters for API-key eligibility — not the UDM/UniFi-OS version, which
+is a separate number; see HISTORY.md #3), well above the 9.0.108
+minimum. API key created from **Integrations → Create New API Key**
+inside the local Network application UI (not Site Manager — see
+HISTORY.md #3 for why that distinction matters), no expiry set (see
+HISTORY.md #3 on rotation). Sealed into `unifi-tf-secrets` alongside
+`TF_BACKEND_PG_CONN_STR`, same `kubeseal --raw` pattern as
+`cloudflare-tf-secrets`.
 
-1. Check the Dream Machine's firmware version (Settings → System). API-key
-   auth (preferred — see below) needs **≥ 9.0.108**.
-2. If firmware qualifies: Control Plane → Admins & Users → your admin →
-   **Create API Key**. Copy it immediately, it's only shown once.
-3. If firmware is older: create a dedicated local admin account instead
-   (not the console SSO login) — username/password is the fallback auth
-   method, already wired as `var.unifi_username`/`var.unifi_password` in
-   `terraform/variables.tf`, just not yet the active method in
-   `terraform/versions.tf`'s `provider "unifi"` block.
-4. Once you have either, the credential + firmware version gets sealed
-   into `unifi-tf-secrets` (same `kubeseal --raw` pattern as
-   `cloudflare-tf-secrets` — see that app's README for the exact
-   command shape) and this README gets updated with the real runbook.
+### Runbook: rotating the API key later
+
+1. Integrations page → revoke the old key, create a new one, copy it
+   immediately (shown once).
+2. Seal just that field, leaving `TF_BACKEND_PG_CONN_STR` untouched:
+   ```bash
+   echo -n '<new-key>' \
+     | sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubeseal --raw \
+         --scope strict --namespace infra --name unifi-tf-secrets
+   ```
+3. Paste the output into `unifi-tf-sealedsecret.yml`, replacing only the
+   `TF_VAR_unifi_api_key` value.
+4. Commit and push — lands on `main` with `automated: {selfHeal: true}`,
+   so it applies on merge like everything else here.
 
 ## Provider: `filipowm/unifi`, not `paultyng/unifi`
 

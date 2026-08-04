@@ -5,7 +5,7 @@ namespace: infra
 
 resources:
   - unifi-tf-job.yml
-  # - unifi-tf-sealedsecret.yml  # added once a real credential is sealed — see README.md
+  - unifi-tf-sealedsecret.yml
 
 # Hash suffix intentionally LEFT ENABLED here — same reasoning as
 # cloudflare-tf. See that app's README for the full explanation.

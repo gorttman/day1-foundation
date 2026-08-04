@@ -17,7 +17,4 @@ resources:
   - grafana/grafana-app.yml
   - cloudflared/cloudflared-app.yml
   - cloudflare-tf/cloudflare-tf-app.yml
-  # - unifi-tf/unifi-tf-app.yml  # not yet registered — unifi-tf-secrets has no real
-  #   credential sealed in yet (blocked on API key/firmware check), and the
-  #   inventory/import work isn't done. Uncomment once both are ready; see
-  #   apps/unifi-tf/README.md.
+  - unifi-tf/unifi-tf-app.yml
