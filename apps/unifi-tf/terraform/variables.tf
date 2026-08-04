@@ -29,3 +29,9 @@ variable "unifi_password" {
   sensitive   = true
   default     = ""
 }
+
+variable "wlan_arda_home_passphrase" {
+  description = "WPA pre-shared key for the ARDA_HOME WLAN (wlan.tf), injected as TF_VAR_wlan_arda_home_passphrase from the unifi-tf-secrets SealedSecret. Pulled live via the inventory pass - never written to a .tf file in plaintext."
+  type        = string
+  sensitive   = true
+}

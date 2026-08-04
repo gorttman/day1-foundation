@@ -162,6 +162,52 @@ to add, 0 to change, 0 to destroy.` This same
 create-a-throwaway-plan-only-Job-first workflow should be the default
 for every future resource type in this app, not just networks.
 
+## 9. wlan.tf: a secret in the inventory, and a deeper version of the same lesson (2026-08-04)
+
+Pulled `ARDA_HOME`'s full config via legacy `rest/wlanconf` - it returns
+the WPA passphrase in plaintext (`x_passphrase`). Never written to a
+`.tf` file: added `wlan_arda_home_passphrase` as a sensitive Terraform
+variable, same `TF_VAR_*`-from-sealed-secret treatment as the UniFi API
+key itself. For the throwaway dry-run Job, used a second, separate
+`kubectl`-created Secret (`unifi-tf-dryrun-secrets`, deleted after) to
+supply it, rather than touching the real `unifi-tf-secrets` before it's
+actually ready to be resealed with a new field for real.
+
+`unifi_wlan`'s import syntax has no `name=` option (unlike
+`unifi_network`) - raw legacy `_id` only, confirmed in the provider's
+docs before attempting anything.
+
+Also referenced `unifi_network.default.id` instead of hardcoding the
+network's ID for `network_id` - both resources import in the same
+plan/apply, so this is a real Terraform-level dependency, not a second
+magic string that could silently drift from the first.
+
+**The dry-run caught something more subtle than network.tf's lesson**:
+this time the mismatch wasn't "docs vs. reality," it was "my own
+reading of the raw legacy JSON vs. reality":
+- `mac_filter_policy`: raw JSON said `"allow"`, but the provider's own
+  post-import read reported `"deny"` - and since `mac_filter_enabled`
+  is `false` on both sides, the field has zero live effect either way.
+  Matched what the provider actually reports, not the JSON.
+- `minimum_data_rate_2g_kbps`: raw JSON's `minrate_ng_enabled: true` /
+  `minrate_ng_data_rate_kbps: 1000` looked like a real 1000kbps floor
+  was active - but the WLAN's top-level `minrate_setting_preference:
+  "auto"` overrides those per-band fields entirely. The provider's own
+  refreshed value is `0` (disabled), not `1000`. Same class of mistake
+  as `dhcp_start`/`dhcp_stop` staying set-but-inactive on a
+  DHCP-disabled network - a legacy field can be present and non-null
+  while functionally inert, and only the provider's own interpretation
+  (not a raw field read) tells you which is true.
+
+**Refined methodology, going forward**: don't just avoid trusting
+provider-doc defaults (lesson #8) - avoid trusting your own reading of
+raw API JSON too, whenever the live object has multiple interacting
+fields (an enabled flag, a preference/mode field, and a value field
+together). The dry-run plan's shown "current" value after
+import/refresh is the only real ground truth for what a field's live,
+*effective* state actually is. Final result: `Plan: 3 to import, 0 to
+add, 0 to change, 0 to destroy.`
+
 ## 4. Device icons: confirmed not manageable (2026-08-04)
 
 Asked whether the UniFi UI's per-device-type icons (AP, switch, gateway
