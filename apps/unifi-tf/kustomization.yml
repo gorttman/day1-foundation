@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: infra
+
+resources:
+  - unifi-tf-job.yml
+  # - unifi-tf-sealedsecret.yml  # added once a real credential is sealed — see README.md
+
+# Hash suffix intentionally LEFT ENABLED here — same reasoning as
+# cloudflare-tf. See that app's README for the full explanation.
+configMapGenerator:
+  - name: unifi-tf-config
+    files:
+      - terraform/versions.tf
+      - terraform/variables.tf
+      # Resource files (network.tf, wlan.tf, device.tf, firewall.tf,
+      # port-forward.tf, clients.tf) are added one at a time as each is
+      # inventoried and imported — see README.md's rollout order.
