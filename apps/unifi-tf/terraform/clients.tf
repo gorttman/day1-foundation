@@ -1,8 +1,14 @@
-# Scope note (2026-08-04, HISTORY.md #11): user's stated intent is ALL
-# 76 known clients eventually - cleaned-up friendly names for every one,
-# plus a dev_id_override icon for each. This file does NOT attempt that
-# tonight. It only covers what's unambiguous from live data alone,
-# without inventing content on the user's behalf:
+# Scope note (2026-08-04, HISTORY.md #11, corrected 2026-08-05 - see
+# #14): user's stated intent is cleaned-up friendly names and a
+# dev_id_override icon for every real, currently-relevant client. The
+# original "76 known clients" figure was wrong scope, not wrong data -
+# it's every client the controller has EVER recorded (some from 2021),
+# not what the UniFi UI actually shows. Corrected scope is clients seen
+# in the last 30 days (39 total, matches the UI's own count) - "if it
+# hasn't connected in 30 days it's dead dead dead," user's words. This
+# file does NOT attempt full name/icon cleanup yet either way. It only
+# covers what's unambiguous from live data alone, without inventing
+# content on the user's behalf:
 #
 # - Only clients where fixed_ip is ACTUALLY ACTIVE live (use_fixedip:
 #   true in the legacy API - not just present-but-inactive) are

@@ -401,3 +401,28 @@ noted by MAC/IP instead of inventing one. None of the remaining ~70
 clients' names or icons were touched or guessed at - that's the user's
 call, explicitly deferred ("not sure, let's cover it when we get
 there"), not something to decide overnight.
+
+## 14. Client scope was wrong - "76" was every client ever, not what's real (2026-08-05)
+
+User checked the actual UniFi UI the next morning: it shows 38 clients,
+not 76. Real discrepancy, checked properly rather than dismissed - `76`
+was the full result of `legacy rest/user`, which returns **every
+client the controller has ever recorded**, including entries with
+`first_seen` timestamps from 2021/2023 - almost certainly devices that
+don't exist on the network anymore (old phones, long-gone guests,
+etc.). That's not what the UI's default Clients view shows.
+
+Checked what actually matches: clients with `last_seen` within 30 days
+= 39 (currently-connected right now = 33; within 7 days = 31; full
+history = 76). 39 is close enough to the UI's 38 that this is the real
+number - the 1-client gap is just real-time activity in the hours
+between last night's session and this check, not a method mismatch.
+
+User's call, immediately and firmly: "if it hasn't been connected in
+the last 30 days then its dead dead dead." Scope corrected to the 39
+recently-active clients (33 remaining beyond the 6 already in
+`clients.tf`), not the full 76-deep history. Useful general lesson:
+"how many X does the live system have" needs the same rigor as every
+other inventory question here - a raw API count and what a human
+actually sees in the UI can differ by 2x if the API returns unfiltered
+historical data by default.
