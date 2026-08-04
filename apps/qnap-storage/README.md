@@ -20,9 +20,11 @@ originally caught.
 |---|---|---|
 | qnap-books | /books | calibre-web (rw) - was kavita (ro) until 2026-07-17 |
 | qnap-vault | /vault/obsidian | obsidian (rw), RWO not RWX - see obsidian directories note below |
+| qnap-immich | /immich | apps/immich (day2, 2026-08-04) - immich-server (rw), RWO not RWX, root:users 2775 |
 
 Planned as apps get their config pass: media (jellyfin + sonarr/radarr),
-immich, photos.
+photos (the general Drive-photos migration, distinct from Immich's own
+`/immich` library).
 
 ## Handing a static PV from one app to another
 
@@ -350,3 +352,21 @@ set here doesn't survive a Paperless restart, only the `2775` mode
 does. Functionally fine since inbox-router also runs as UID 1000 (so
 owner-match covers it), but worth knowing if group-based reasoning
 about this directory's permissions stops making sense later.
+
+## immich directory (2026-08-04)
+
+`/immich` was already a real, distinct top-level export (confirmed
+alongside `/photos`/`/media`/`/cold` back on 2026-08-01 - see the
+paperless directory note above - unused until now). Chowned
+`root:users` (GID 100), mode `2775` from the start - same convention
+as `/paperless`, applied up front rather than discovered the hard way
+a second/third time.
+
+Unlike Paperless, `immich-server`'s own container runs as root by
+default (confirmed live: `id` inside the image returns
+`uid=0(root) gid=0(root)`, no PUID/PGID mechanism, no
+non-root-by-default behavior to account for) - so the `root:users`
+ownership here is really just documentation of intent; root can write
+regardless (`no_root_squash`, same as every other export), and there's
+no non-root container UID that needs the group-write bit the way
+inbox-router's UID 1000 did on `/inbox`/`/books`.

@@ -1,0 +1,29 @@
+# Static NFS PersistentVolume onto the QNAP - same pattern as
+# qnap-books-pv.yml. /immich was already a real, distinct top-level
+# export (confirmed via showmount -e qnap.i3sec.com.au, alongside
+# /photos, /media, /cold - see README.md) - unused until apps/immich
+# (day2-services, 2026-08-04).
+#
+# RWO, not RWX: immich-server is single-replica with no multi-writer
+# use case (same reasoning as qnap-vault/obsidian) - claiming RWX would
+# just be a wider grant than the workload needs.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: qnap-immich
+  labels:
+    app.kubernetes.io/part-of: qnap-storage
+    argocd.argoproj.io/managed-by: argocd
+spec:
+  capacity:
+    storage: 1Ti  # informational for NFS; not enforced
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: qnap-static
+  mountOptions:
+    - vers=4
+    - noatime
+  nfs:
+    server: qnap.i3sec.com.au
+    path: /immich
