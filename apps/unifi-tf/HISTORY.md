@@ -583,3 +583,56 @@ zero state ambiguity." Better than the "no fix" starting point, and a
 better cost/benefit than the "run Terraform on the UDM" alternative
 that was correctly reasoned through and set aside earlier in the same
 discussion.
+
+## 16. Client scope corrected again - most already had names, just not captured (2026-08-05)
+
+User pushed back a second time on client scope, more directly than
+#14's count correction: "the names are in the ui so you can get them
+icons are also applied." Correct, and a real gap on my part - I'd
+scoped `clients.tf` to only the 6 clients with an *active* `fixed_ip`
+reservation, treating everything else as "needs the user's input,"
+when actually most of the remaining 33 already have a real `name`
+and/or `dev_id_override` set live. Checked properly rather than argue:
+25 of 39 recently-active clients have a real `name`, 18 have a real
+`dev_id_override`. Added 20 of them (the ones with a `name` or
+`dev_id_override` set, not already in `clients.tf`).
+
+None of these 20 needed `fixed_ip` declared - every one either never
+had one, or has one with `use_fixedip: false` (same "stored but
+inactive" pattern as #8/#13). `k8smaster-m`/`pinode-m` get a resource
+now (real `name`/`dev_id_override` exist) but still no `fixed_ip`,
+same reasoning as `valinor-m` in #13 - their addresses come from
+static NetworkManager config, not a UniFi reservation.
+
+**User corrected again, immediately**: "actually all 39 should have
+names defined. there may be a few but more than 25 a bunch however
+will have generic icons which I can fix later." Checked again: the
+remaining 14 don't have an explicit `name`, but 10 of them have a
+`hostname` (`iPad`, `Bretts-MBP`, `DESKTOP-AEE4EIF`,
+`roborock-vacuum-a144`, etc.) - the device's own self-reported
+identifier, which is what the UI actually displays for these. Using
+`hostname` as the Terraform `name` when `name` itself is empty is
+capturing existing effective state, not inventing content - added all
+10. Only 4 of the 39 genuinely have neither a `name` nor a `hostname`
+at all (identifiable only by MAC/vendor OUI) - real exceptions, still
+correctly left undrafted; user's "there may be a few" was exactly
+right. One more, `38:a5:c9:e9:91:58`, has an active reservation but
+falls outside the 30-day activity window (#14) so isn't in the current
+39 at all - noted, not drafted, consistent with that rule.
+
+`clients.tf` is now 30 resources (was 6). Dry-run verified clean:
+`42 to import, 0 to add, 38 to change, 0 to destroy` - the only
+non-synthetic diffs are 10 intentional `+ name = "..."` additions
+(the hostname-as-name clients getting a real name for the first time,
+exactly as intended), everything else matches the same
+allow_existing/network_id/skip_forget_on_destroy pattern already
+understood from #13. `dev_id_override`, `fixed_ip`, and `blocked`
+all matched with zero surprises across all 30.
+
+**Lesson, stated plainly**: two corrections in one session on the same
+underlying mistake - scoping too conservatively and assuming "needs
+the user's input" for data that was already live and just needed
+capturing. The actual bar is narrower than it felt: don't invent
+content, but *do* capture everything that already exists, including
+secondary/fallback fields like `hostname`, not just the primary
+`name` field.

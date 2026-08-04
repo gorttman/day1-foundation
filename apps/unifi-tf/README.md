@@ -27,11 +27,14 @@ through the GitOps path (`unifi-tf-app.yml` is still not registered in
   devices (`switch_mainnet`, `switch_picluster`, `gateway` —
   deliberately held back, different risk class, see HISTORY.md #10/#11),
   `security-settings.tf` (IPS/threat prevention — genuinely
-  non-default, see below and HISTORY.md #12), and `clients.tf` (6 of 39
-  recently-active known clients, the only ones with unambiguous live
-  data to capture — client scope corrected 2026-08-05, see HISTORY.md
-  #13/#14). `firewall.tf`/`port-forward.tf` are intentionally empty,
-  confirmed live twice.
+  non-default, see below and HISTORY.md #12), and `clients.tf` (30 of
+  39 recently-active known clients — scope corrected twice on
+  2026-08-05, see HISTORY.md #13/#14/#16: most already have a real
+  `name` and/or `dev_id_override` set live, including 10 captured via
+  `hostname` where `name` itself was empty — only 4 clients genuinely
+  have neither and still need the user's input).
+  `firewall.tf`/`port-forward.tf` are intentionally empty, confirmed
+  live twice.
 - Every file above passes a combined dry-run together (`terraform
   plan` against the real backend, real state, zero `apply`) with only
   the two expected/benign diff patterns: synthetic create-time flags
@@ -279,18 +282,19 @@ icon itself still isn't a stored, freestanding setting — but the
 classification *can* be overridden: `unifi_user`'s `dev_id_override`
 attribute ("Override the device fingerprint") is real and Terraform-
 manageable, which changes the icon as a side effect of overriding the
-fingerprint match. Confirmed with real live examples now, not just
-theory: the 5 Google Home/Linux-host clients in `clients.tf` already
-have real `dev_id_override` values set (`2028`, `4133`) — captured as
-existing state, not invented. What's still unresolved: what numeric
-`dev_id` values actually *mean* (no public Ubiquiti lookup table found,
-see HISTORY.md #7) — fine for preserving existing overrides, blocking
-for choosing new ones on the remaining clients. User's explicit call
-(2026-08-04): "not sure, let's cover it when we get there." Scope for
-"the remaining clients" corrected 2026-08-05 (HISTORY.md #14): clients
-seen in the last 30 days only (39 total, 33 beyond the 6 already
-drafted), not the full 76-deep all-time history — "if it hasn't
-connected in 30 days it's dead dead dead."
+fingerprint match. Confirmed with real live examples, not just theory:
+18 of `clients.tf`'s 30 clients already have a real `dev_id_override`
+set live — captured as existing state, not invented (see HISTORY.md
+#16 — scope was corrected twice here: first from "only 6 clients have
+enough live data" to "25 of 39 already have a real name," then again
+to "10 more have a usable `hostname` where `name` is empty," leaving
+only 4 clients that genuinely have neither). What's still unresolved:
+what numeric `dev_id` values actually *mean* (no public Ubiquiti
+lookup table found, see HISTORY.md #7) — fine for preserving existing
+overrides, blocking for choosing new icons on the 4 real remaining
+clients (or the ~9 recently-active ones with a name but no icon at
+all). User's explicit call (2026-08-04): "not sure, let's cover it
+when we get there."
 
 ## Security settings — a real exception to "don't manage defaults"
 

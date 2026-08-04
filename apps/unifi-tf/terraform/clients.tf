@@ -1,56 +1,45 @@
 # Scope note (2026-08-04, HISTORY.md #11, corrected 2026-08-05 - see
-# #14): user's stated intent is cleaned-up friendly names and a
-# dev_id_override icon for every real, currently-relevant client. The
-# original "76 known clients" figure was wrong scope, not wrong data -
-# it's every client the controller has EVER recorded (some from 2021),
-# not what the UniFi UI actually shows. Corrected scope is clients seen
-# in the last 30 days (39 total, matches the UI's own count) - "if it
-# hasn't connected in 30 days it's dead dead dead," user's words. This
-# file does NOT attempt full name/icon cleanup yet either way. It only
-# covers what's unambiguous from live data alone, without inventing
-# content on the user's behalf:
+# #14 and #16): recently-active clients (last_seen within 30 days) =
+# 39, matches what the UniFi UI actually shows. Of those, 25 already
+# have a real `name` set live and 18 already have a real
+# `dev_id_override` (icon) set live - captured here as existing state,
+# same as the original 6. This is NOT the "pick names/icons for every
+# client" task - it's "stop leaving already-set real data undrafted."
+# The remaining ~14 clients with genuinely nothing set (no name, no
+# icon, no fixed_ip) still need the user's input before anything can
+# be drafted for them - that part is unchanged.
 #
-# - Only clients where fixed_ip is ACTUALLY ACTIVE live (use_fixedip:
-#   true in the legacy API - not just present-but-inactive) are
-#   declared here. 13 of the original 21 fixed_ip entries have
-#   use_fixedip: false - the IP is stored but not an active DHCP
-#   reservation. That group includes k8smaster-m/pinode-m/valinor-m,
-#   which makes sense once you think about it: those nodes get their
-#   192.168.1.x addresses from their own static NetworkManager config
-#   (day0-infra-build's backend_vlan_ip, see the wired-route work
-#   earlier tonight), not a UniFi reservation. Declaring fixed_ip for
-#   them here would CREATE a reservation that doesn't currently exist -
-#   a real behavior change, not bookkeeping. Left undeclared.
-# - 2 of the 8 genuinely-active fixed_ip clients (192.168.2.30 and
-#   192.168.2.29) have no name set live at all - name is a REQUIRED
-#   attribute on unifi_user, and inventing one would be exactly the
-#   kind of content decision explicitly left to the user. Not drafted;
-#   noted below with their MAC/IP so they're easy to find and add once
-#   named.
-# - The 51 clients with just a name and no other real customization,
-#   and the other ~25 with nothing set at all, are not drafted here
-#   either - the user's actual ask (clean up all 76 names, assign
-#   icons) needs their direct input, not something to guess overnight.
+# fixed_ip: NONE of the 20 clients added in #16 need it declared -
+# every one either never had a fixed_ip at all, or has one with
+# use_fixedip: false (stored but inactive, same "disabled ≠ unset"
+# lesson as network.tf/#8). Only the original 6 (HISTORY.md #13) have
+# a genuinely ACTIVE reservation.
 #
-# Import ID: no "Import" section documented for unifi_user. Trying the
-# raw legacy _id first (same pattern as wlan/device), not yet confirmed
-# via dry-run the way the resources above were.
+# k8smaster-m/pinode-m: same reasoning as valinor-m in #13 for why
+# fixed_ip stays undeclared (their addresses come from static
+# NetworkManager config, not a UniFi reservation) - but unlike #13,
+# these two DO have a real name + dev_id_override set live, so they
+# get a resource now, just without fixed_ip. network_id is
+# Cluster-Backend for these two specifically (last_connection_network_id
+# confirms it), Default for everyone else.
+#
+# local_dns_record: none of the 20 new clients have one set live
+# (local_dns_record_enabled: false, local_dns_record: "" where the
+# field is present at all) - correctly omitted throughout, unlike 5 of
+# the original 6.
+#
+# blocked = false declared explicitly on every new resource - no
+# documented default for this attribute (same "don't assume, declare"
+# lesson as network.tf/wlan.tf), live value confirmed false/absent for
+# all of these.
+#
+# NOT drafted, no live name at all (name is REQUIRED, not inventing
+# one): mac 00:08:9b:bb:ee:d9 (fixed_ip 192.168.2.30, from #13),
+# mac 38:a5:c9:e9:91:58 (fixed_ip 192.168.2.29, from #13),
+# mac a2:0a:48:a7:dc:3d (has dev_id_override 4511 but no name at all).
 #
 # user_group_id omitted for all - live usergroup_id is empty string
-# (no override) for every one of these.
-#
-# dev_id_override / local_dns_record: FIRST DRAFT of this file omitted
-# both entirely, and the dry-run caught that as a real destructive
-# mistake, not a cosmetic one - 5 of these 6 clients already have a
-# real dev_id_override (icon) set, and 5 already have a real, working
-# local_dns_record (e.g. googlehome-bar.i3sec.com.au). Leaving them
-# undeclared would have WIPED both on apply. Pulled the complete raw
-# record for each (not just the field subset used earlier) before
-# writing this version - same "verify the whole object, not just the
-# fields you expect to need" lesson as network.tf/wlan.tf, just a more
-# expensive way to learn it. These are EXISTING live values, not
-# choices made here - the deferred "pick icons for all 76 clients"
-# question is unrelated and still unresolved.
+# (no override) throughout.
 #
 # Also found, not carried forward here: k8smaster has a "fixed AP" pin
 # defined but disabled (fixed_ap_mac -> In-Wall-Office,
@@ -59,64 +48,296 @@
 # approach to the roaming problem is ever revisited.
 
 resource "unifi_user" "googlehome_lounge" {
-  mac               = "48:d6:d5:db:89:2e"
-  name              = "googlehome lounge"
-  fixed_ip          = "192.168.2.69"
-  network_id        = unifi_network.default.id
-  dev_id_override   = 2028
-  local_dns_record  = "googlehome-lounge.i3sec.com.au"
+  mac              = "48:d6:d5:db:89:2e"
+  name             = "googlehome lounge"
+  fixed_ip         = "192.168.2.69"
+  network_id       = unifi_network.default.id
+  dev_id_override  = 2028
+  local_dns_record = "googlehome-lounge.i3sec.com.au"
 }
 
 resource "unifi_user" "googlehome_shed" {
-  mac               = "e4:f0:42:4e:f3:00"
-  name              = "googlehome shed"
-  fixed_ip          = "192.168.2.40"
-  network_id        = unifi_network.default.id
-  dev_id_override   = 2028
-  local_dns_record  = "googlehome-shed.i3sec.com.au"
+  mac              = "e4:f0:42:4e:f3:00"
+  name             = "googlehome shed"
+  fixed_ip         = "192.168.2.40"
+  network_id       = unifi_network.default.id
+  dev_id_override  = 2028
+  local_dns_record = "googlehome-shed.i3sec.com.au"
 }
 
 resource "unifi_user" "googlehome_clock" {
-  mac               = "08:38:e6:35:8e:aa"
-  name              = "googlehome clock"
-  fixed_ip          = "192.168.2.188"
-  network_id        = unifi_network.default.id
-  local_dns_record  = "googlehome-clock.i3sec.com.au"
+  mac              = "08:38:e6:35:8e:aa"
+  name             = "googlehome clock"
+  fixed_ip         = "192.168.2.188"
+  network_id       = unifi_network.default.id
+  local_dns_record = "googlehome-clock.i3sec.com.au"
   # no dev_id_override live for this one specifically - not every
   # googlehome entry has one set, confirmed via the raw record.
 }
 
 resource "unifi_user" "googlehome_bar" {
-  mac               = "00:f6:20:b3:7b:8a"
-  name              = "googlehome bar"
-  fixed_ip          = "192.168.2.197"
-  network_id        = unifi_network.default.id
-  dev_id_override   = 2028
-  local_dns_record  = "googlehome-bar.i3sec.com.au"
+  mac              = "00:f6:20:b3:7b:8a"
+  name             = "googlehome bar"
+  fixed_ip         = "192.168.2.197"
+  network_id       = unifi_network.default.id
+  dev_id_override  = 2028
+  local_dns_record = "googlehome-bar.i3sec.com.au"
 }
 
 resource "unifi_user" "pinode_01" {
-  mac               = "2c:cf:67:27:93:f2"
-  name              = "pinode-01"
-  fixed_ip          = "192.168.2.11"
-  network_id        = unifi_network.default.id
-  dev_id_override   = 4133
-  local_dns_record  = "pinode-01.i3sec.com.au"
+  mac              = "2c:cf:67:27:93:f2"
+  name             = "pinode-01"
+  fixed_ip         = "192.168.2.11"
+  network_id       = unifi_network.default.id
+  dev_id_override  = 4133
+  local_dns_record = "pinode-01.i3sec.com.au"
 }
 
 resource "unifi_user" "k8smaster" {
-  mac               = "88:a2:9e:2e:af:a1"
-  name              = "k8smaster"
-  fixed_ip          = "192.168.2.10"
-  network_id        = unifi_network.default.id
-  dev_id_override   = 4133
+  mac             = "88:a2:9e:2e:af:a1"
+  name            = "k8smaster"
+  fixed_ip        = "192.168.2.10"
+  network_id      = unifi_network.default.id
+  dev_id_override = 4133
   # local_dns_record live is "" (empty) with local_dns_record_enabled
   # false - genuinely not set, unlike the others. Omitted to match.
 }
 
-# NOT drafted - no live name set, needs one from you first:
-#   mac 00:08:9b:bb:ee:d9, fixed_ip 192.168.2.30
-#   mac 38:a5:c9:e9:91:58, fixed_ip 192.168.2.29
+resource "unifi_user" "fetchbox_family_room" {
+  mac             = "bc:14:ef:fd:1e:47"
+  name            = "FetchBox Family Room"
+  network_id      = unifi_network.default.id
+  dev_id_override = 2494
+  blocked         = false
+}
+
+resource "unifi_user" "printer_hp" {
+  mac             = "e4:d5:3d:81:26:9e"
+  name            = "Printer HP"
+  network_id      = unifi_network.default.id
+  dev_id_override = 2200
+  blocked         = false
+}
+
+resource "unifi_user" "phone_base_station" {
+  mac             = "7c:2f:80:99:9d:2c"
+  name            = "Phone-Base-Station"
+  network_id      = unifi_network.default.id
+  dev_id_override = 4066
+  blocked         = false
+}
+
+resource "unifi_user" "chromecast_pergola" {
+  mac             = "88:3d:24:5b:0a:4e"
+  name            = "Chromecast Pergola"
+  network_id      = unifi_network.default.id
+  dev_id_override = 39
+  blocked         = false
+}
+
+resource "unifi_user" "fetchbox_pantry" {
+  mac             = "e0:9f:2a:b3:95:22"
+  name            = "FetchBox Pantry"
+  network_id      = unifi_network.default.id
+  dev_id_override = 2494
+  blocked         = false
+}
+
+resource "unifi_user" "lg_tv_family_room" {
+  mac             = "a8:a2:37:81:80:ea"
+  name            = "LG-TV Family Room"
+  network_id      = unifi_network.default.id
+  dev_id_override = 38
+  blocked         = false
+}
+
+resource "unifi_user" "marinas_ipad" {
+  mac        = "ba:d6:43:c8:9a:a6"
+  name       = "Marinas IPad"
+  network_id = unifi_network.default.id
+  blocked    = false
+}
+
+resource "unifi_user" "marinas_iphone" {
+  mac        = "d2:9d:7f:58:0a:dd"
+  name       = "Marinas IPhone"
+  network_id = unifi_network.default.id
+  blocked    = false
+}
+
+resource "unifi_user" "thermomix_2" {
+  mac        = "58:16:d7:f3:27:9d"
+  name       = "Thermomix 2"
+  network_id = unifi_network.default.id
+  blocked    = false
+}
+
+resource "unifi_user" "gpo_plug_base_pergola_2" {
+  mac             = "40:f5:20:ee:71:74"
+  name            = "GPO Plug-base pergola 2"
+  network_id      = unifi_network.default.id
+  dev_id_override = 4412
+  blocked         = false
+}
+
+resource "unifi_user" "eufy_home_base" {
+  mac        = "04:17:b6:7e:e8:37"
+  name       = "Eufy Home Base"
+  network_id = unifi_network.default.id
+  blocked    = false
+}
+
+resource "unifi_user" "camera_garage" {
+  mac        = "50:41:1c:88:23:56"
+  name       = "Camera - Garage"
+  network_id = unifi_network.default.id
+  blocked    = false
+}
+
+resource "unifi_user" "bretts_iphone" {
+  mac             = "26:cd:3e:0f:f4:18"
+  name            = "Brett’s Iphone"
+  network_id      = unifi_network.default.id
+  dev_id_override = 5341
+  blocked         = false
+}
+
+resource "unifi_user" "spa_controller_wifi" {
+  mac        = "10:06:1c:4d:19:24"
+  name       = "Spa Controller WiFi"
+  network_id = unifi_network.default.id
+  blocked    = false
+}
+
+resource "unifi_user" "spa_controller_fixed" {
+  mac        = "10:06:1c:4d:19:27"
+  name       = "Spa Controller Fixed"
+  network_id = unifi_network.default.id
+  blocked    = false
+}
+
+resource "unifi_user" "lg_tv_bedroom" {
+  mac             = "40:2f:86:69:c6:50"
+  name            = "LG-TV Bedroom"
+  network_id      = unifi_network.default.id
+  dev_id_override = 38
+  blocked         = false
+}
+
+resource "unifi_user" "bretts_ipad" {
+  mac             = "3a:97:ba:11:c4:e3"
+  name            = "Bretts Ipad"
+  network_id      = unifi_network.default.id
+  dev_id_override = 4700
+  blocked         = false
+}
+
+resource "unifi_user" "k8smaster_m" {
+  mac             = "88:a2:9e:2e:af:a0"
+  name            = "k8smaster-m"
+  network_id      = unifi_network.cluster_backend.id
+  dev_id_override = 4133
+  blocked         = false
+}
+
+resource "unifi_user" "pinode_m" {
+  mac             = "2c:cf:67:27:93:f1"
+  name            = "pinode-m"
+  network_id      = unifi_network.cluster_backend.id
+  dev_id_override = 4133
+  blocked         = false
+}
+
+# The remaining 10 don't have an explicit `name` set live, but DO have
+# a `hostname` (the device's own self-reported name - "iPad",
+# "Bretts-MBP", "DESKTOP-AEE4EIF", etc.) - that's what the UniFi UI
+# actually displays for these, so using it as the Terraform `name` is
+# capturing existing effective state, not inventing content. User's
+# correction (2026-08-05): "all 39 should have names defined... a bunch
+# will have generic icons which I can fix later" - confirmed: only 4 of
+# the 39 genuinely have neither a name nor a hostname, see below.
+
+resource "unifi_user" "valinor" {
+  mac        = "00:08:9b:bb:ee:d9"
+  name       = "valinor"
+  fixed_ip   = "192.168.2.30" # live use_fixedip: true - genuinely active, unlike most of #16's batch
+  network_id = unifi_network.default.id
+  blocked    = false
+}
+
+resource "unifi_user" "macbookair" {
+  mac             = "a2:0a:48:a7:dc:3d"
+  name            = "MacBookAir"
+  network_id      = unifi_network.default.id
+  dev_id_override = 4511
+  blocked         = false
+}
+
+resource "unifi_user" "ipad_64f0" {
+  mac        = "82:a3:27:87:64:f0"
+  name       = "iPad"
+  network_id = unifi_network.default.id
+  blocked    = false
+}
+
+resource "unifi_user" "roborock_vacuum_a144" {
+  mac        = "24:9e:7d:6e:a0:7b"
+  name       = "roborock-vacuum-a144"
+  network_id = unifi_network.default.id
+  blocked    = false
+}
+
+resource "unifi_user" "ipad_67a6" {
+  mac        = "d6:07:df:ce:67:a6"
+  name       = "iPad"
+  network_id = unifi_network.default.id
+  blocked    = false
+}
+
+resource "unifi_user" "thermomix_90df0b" {
+  mac        = "34:32:e6:90:df:0b"
+  name       = "thermomix-90df0b"
+  network_id = unifi_network.default.id
+  blocked    = false
+}
+
+resource "unifi_user" "mnab53j7j34" {
+  mac        = "8c:e9:ee:45:c6:df"
+  name       = "MNAB53J7J34"
+  network_id = unifi_network.default.id
+  blocked    = false
+}
+
+resource "unifi_user" "bretts_mbp" {
+  mac        = "fc:b2:14:af:61:5e"
+  name       = "Bretts-MBP"
+  network_id = unifi_network.default.id
+  blocked    = false
+}
+
+resource "unifi_user" "lwip0" {
+  mac        = "38:2c:e5:98:86:80"
+  name       = "lwip0"
+  network_id = unifi_network.default.id
+  blocked    = false
+}
+
+resource "unifi_user" "desktop_aee4eif" {
+  mac        = "dc:21:5c:97:2a:6b"
+  name       = "DESKTOP-AEE4EIF"
+  network_id = unifi_network.default.id
+  blocked    = false
+}
+
+# The genuine "few" exceptions, confirmed by data, not assumption: no
+# `name`, no `hostname` at all. `name` is required, not inventing one.
+#   mac 00:00:01:08:82:84 (Xerox Corporation)
+#   mac 7c:d5:66:a1:3f:41 (Amazon Technologies Inc.)
+#   mac a8:1a:f1:49:1d:bb (Apple, Inc.)
+#   mac 56:ad:52:8e:80:40 (no vendor OUI match either)
+# Also out of scope per the 30-day activity rule (HISTORY.md #14):
+#   mac 38:a5:c9:e9:91:58, fixed_ip 192.168.2.29 (active reservation,
+#   but last_seen outside the 30-day window - not in the current 39)
 
 import {
   to = unifi_user.googlehome_lounge
@@ -141,4 +362,120 @@ import {
 import {
   to = unifi_user.k8smaster
   id = "68c26d0a1da50b72d5255550"
+}
+import {
+  to = unifi_user.fetchbox_family_room
+  id = "607fbfe72d387c04fa8ff636"
+}
+import {
+  to = unifi_user.printer_hp
+  id = "607fbfe72d387c04fa8ff63c"
+}
+import {
+  to = unifi_user.phone_base_station
+  id = "607fc4e0afaf570510a1e6c1"
+}
+import {
+  to = unifi_user.chromecast_pergola
+  id = "60824193afaf570510a226df"
+}
+import {
+  to = unifi_user.fetchbox_pantry
+  id = "60fe5e59bfc2330366790dff"
+}
+import {
+  to = unifi_user.lg_tv_family_room
+  id = "641e298f32c35b0378eb6c72"
+}
+import {
+  to = unifi_user.marinas_ipad
+  id = "64f9820d638c93062ba9e480"
+}
+import {
+  to = unifi_user.marinas_iphone
+  id = "64f9828f638c93062ba9e488"
+}
+import {
+  to = unifi_user.thermomix_2
+  id = "6529b83fdc56ad04323ac38a"
+}
+import {
+  to = unifi_user.gpo_plug_base_pergola_2
+  id = "6557f24a51a2f9043a14b12e"
+}
+import {
+  to = unifi_user.eufy_home_base
+  id = "656114d62b7f9b043fbbef3c"
+}
+import {
+  to = unifi_user.camera_garage
+  id = "659b88d299a92b1115e48169"
+}
+import {
+  to = unifi_user.bretts_iphone
+  id = "67248f327a126434dfc0eaa3"
+}
+import {
+  to = unifi_user.spa_controller_wifi
+  id = "67319f3e7a126434dfc3293e"
+}
+import {
+  to = unifi_user.spa_controller_fixed
+  id = "67410ce1e5ca617617428f16"
+}
+import {
+  to = unifi_user.lg_tv_bedroom
+  id = "674581dbd0081f7bd590798e"
+}
+import {
+  to = unifi_user.bretts_ipad
+  id = "674581ecd0081f7bd5907990"
+}
+import {
+  to = unifi_user.k8smaster_m
+  id = "68d64e4c047a683ca81bbe9d"
+}
+import {
+  to = unifi_user.pinode_m
+  id = "68e96b5720e6db6972e6a6e2"
+}
+import {
+  to = unifi_user.valinor
+  id = "6881e89d2374fb4193c8edcd"
+}
+import {
+  to = unifi_user.macbookair
+  id = "68a28c151da50b72d51e9722"
+}
+import {
+  to = unifi_user.ipad_64f0
+  id = "6966c8c110c8725bc7ff9533"
+}
+import {
+  to = unifi_user.roborock_vacuum_a144
+  id = "69ae3d1b08640f21a3fa40f7"
+}
+import {
+  to = unifi_user.ipad_67a6
+  id = "69c53644ce22c861c8d51581"
+}
+import {
+  to = unifi_user.thermomix_90df0b
+  id = "69c6fe32ce22c861c8d57702"
+}
+import {
+  to = unifi_user.mnab53j7j34
+  id = "6a3c6228b03cb53572f17cb3"
+}
+import {
+  to = unifi_user.bretts_mbp
+  id = "6a472686b03cb53572f3c395"
+}
+import {
+  to = unifi_user.lwip0
+  id = "6a488c1203fdbd43b3ecfcce"
+}
+import {
+  to = unifi_user.desktop_aee4eif
+  id = "6a50a05b03fdbd43b3eeaaad"
 }
