@@ -64,6 +64,16 @@ expiry (see README.md's Secrets section) since there's no rotation
 automation in this pipeline yet - an automated rotation integration is
 a real future idea, just not built as part of this initial setup.
 
+## 4. Device icons: confirmed not manageable (2026-08-04)
+
+Asked whether the UniFi UI's per-device-type icons (AP, switch, gateway
+pictograms) could be set via Terraform. Checked the `unifi_device`
+resource's full attribute list in the provider docs — no icon or
+display-type field anywhere. These are derived client-side from the
+hardware model/shortname the device reports on adoption, not a stored
+API setting. Nothing to do here, just worth recording so the question
+doesn't get re-asked and re-researched later.
+
 ## 5. Stage 2 verification hit a real snag - Argo CD parent/child sync (2026-08-04)
 
 Merged both PRs (`unifi-tf-scaffold` and the Postgres `unifi_tf`
@@ -208,12 +218,186 @@ import/refresh is the only real ground truth for what a field's live,
 *effective* state actually is. Final result: `Plan: 3 to import, 0 to
 add, 0 to change, 0 to destroy.`
 
-## 4. Device icons: confirmed not manageable (2026-08-04)
+## 10. device.tf: a real port_override catch, and a routing prerequisite discovered (2026-08-04)
 
-Asked whether the UniFi UI's per-device-type icons (AP, switch, gateway
-pictograms) could be set via Terraform. Checked the `unifi_device`
-resource's full attribute list in the provider docs — no icon or
-display-type field anywhere. These are derived client-side from the
-hardware model/shortname the device reports on adoption, not a stored
-API setting. Nothing to do here, just worth recording so the question
-doesn't get re-asked and re-researched later.
+Pulled `stat/device` for all 8 devices. Radio config alone wasn't
+enough - the first dry-run showed `Gateway` and `Switch-PiCluster` both
+wanting to **remove** live `port_override` blocks that were never
+captured (the inventory pass only looked at `radio_table`, not
+`port_overrides`). `Switch-PiCluster`'s ports 3/7/8 carry
+`Cluster-Backend` (native VLAN 10) to specific physical ports - almost
+certainly the actual Pi cluster wiring (matches the fixed-IP static
+clients on 192.168.1.x: `pinode-m`, `k8smaster-m`, `valinor-m`).
+Applying the original draft would have reverted real switch-port VLAN
+config, risking actual cluster connectivity, not just Wi-Fi. Added the
+missing `port_override` blocks (only the attributes this provider
+actually exposes - `speed`/`full_duplex`/`autoneg`/storm-control/port
+security have no Terraform equivalent, dashboard-only), re-verified
+clean.
+
+`forget_on_destroy` defaults to `true` on this provider - meaning an
+unmanaged `terraform destroy` or forced replacement could un-adopt real
+hardware. Set `false` explicitly on every device, non-negotiable, no
+exceptions.
+
+**The "pending change" discussion.** Even with every radio field
+matching live exactly, `tx_power` (irrelevant when `tx_power_mode !=
+"custom"`, true for every radio here) always renders as `(known after
+apply)`, dragging the whole `radio` block into "pending" in the plan -
+a provider quirk, not a real mismatch. Confirmed this isn't a
+permanent state: it's specific to importing into empty state (nothing
+to compare `tx_power` against yet) - after one real apply, Terraform
+records whatever the API returns as a concrete value, and subsequent
+plans should resolve cleanly, same as network.tf/wlan.tf. Estimated a
+10-30 second radio-restart window from general UniFi behavior, but
+explicitly flagged that as an estimate, not a measurement - see #12 for
+what actually happened.
+
+**Discovered mid-discussion, not initially part of this stage**: both
+`k8smaster` and `pinode-01` were reaching the UDM's own API
+(`192.168.2.1`) over `wlan0`, not their wired NICs - confirmed via `ip
+route get` on both, not assumed. Root cause: `wlan0` sits directly on
+`192.168.2.0/24` while `end0`/`eth0` only have the on-link route to
+`Cluster-Backend` (`192.168.1.0/27`) - the kernel prefers the more
+specific, directly-connected interface. Real risk: a WLAN-disrupting
+apply could cut the very control path used to manage it, mid-apply,
+with no visibility to recover. Fixed live on both nodes via `nmcli
+connection modify <conn> +ipv4.routes "192.168.2.1/32 192.168.1.1"` +
+`nmcli device reapply` - a `/32` host route to just the UDM's own
+address, not the whole subnet. Gateway IP (`192.168.1.1`) confirmed via
+UniFi's own `ip_subnet` field convention (`<gateway-ip>/<prefix>`,
+cross-checked against `Default`'s `192.168.2.1/24` which is verifiably
+the real gateway), not guessed, then verified live with a ping first.
+User's call: fix **both** nodes rather than pin the Job to one ("not a
+fan of pinning too much") - correct, since Pod egress follows whichever
+node's own routing table it lands on. Verified at three levels (host
+curl, SSH'd curl, in-cluster throwaway Pod curl) and again later with a
+forced-interface test (`curl --interface end0/eth0`) bypassing normal
+route selection entirely - all succeeded. Codified into
+`day0-infra-build` (`variables/play/day0_bootstrap.yml`'s new
+`backend_vlan_routes`, wired into
+`roles/prep_prerequisites/tasks/network.yml` via `routes4`) for the
+next from-scratch rebuild, pushed as branch `unifi-tf-backend-route`,
+not merged - deliberately did NOT re-run the full day0 bootstrap
+playbook against live production nodes to apply this (it does far more
+than networking), applied the live fix directly instead. Found along
+the way: `pinode-01`'s wired connection is actually named `eth0`, not
+`end0`/`backend-vlan` like the existing Ansible task assumes -
+pre-existing inconsistency, documented inline, not fixed.
+
+## 11. First real applies: a canary, then a real roaming blip (2026-08-04)
+
+First-ever real `apply` against the live gateway (not a dry-run) -
+`unifi_device.uap_shed`, chosen as a low-stakes canary (3 IoT clients:
+two outdoor smart plugs, one Google Home). Used `terraform apply
+-target=unifi_device.uap_shed` inside a throwaway `kubectl`-created Job
+against the real backend, scoped to just that one resource - checked
+the *targeted* plan first (still plan-only) before ever flipping to
+apply, same discipline as every other stage. Result: `provisionedAt`
+confirmed a real reprovision fired, but all 3 clients stayed connected
+throughout with unchanged `connectedAt` timestamps - no detectable
+disruption. Caveat stated plainly at the time: this isn't
+packet-capture-grade measurement, a sub-second blip too brief to reset
+a timestamp wouldn't show up here.
+
+Proceeded to the 4 remaining pure APs (`In-Wall-Bedroom`,
+`In-Wall-Office`, `In-Wall-Bar`, `In-Wall Lounge`) as one batch, same
+targeted-plan-then-apply discipline. **This one was not a non-event.**
+Baseline vs. after:
+- `In-Wall-Office`: 1 → 4 clients
+- `In-Wall-Bedroom`: 2 → 0
+- `In-Wall Lounge`: 10 → 2
+- `In-Wall-Bar`: 5 → 0
+- `Gateway` (not even touched by this apply): 0 baseline → **17**
+  clients
+
+Total client count stayed intact (33 vs. ~31 original baseline -
+nothing dropped off the network permanently), but real, visible
+roaming occurred, and most displaced clients landed on the Gateway's
+own radio rather than a nearby AP - directly reproducing the exact
+"family-room TV connects to the Gateway from 30cm away from an in-wall
+AP" behavior mentioned earlier as an example of "devices doing weird
+stuff in general." Not a coincidence; very likely the same underlying
+roaming-decision problem this whole app was motivated by.
+
+**Why the canary didn't predict this**: static IoT plugs (the shed's 3
+clients) don't actively scan/roam the way phones, laptops, and smart
+TVs do. A single low-traffic AP with passive clients is a fundamentally
+different test than APs serving actively-roaming devices. Lesson for
+any future canary-style test: match the canary's client mix to what
+you're actually trying to de-risk, not just "pick the quietest one."
+
+Deliberately held back the remaining 3 devices (`Switch-MainNet`,
+`Switch-PiCluster`, `Gateway`) after this - different, higher-stakes
+risk class (`Switch-PiCluster` carries real Pi cluster wiring; `Gateway`
+is the UDM itself), and the roaming blip from this batch was reason
+enough to pause rather than push further the same night.
+
+## 12. security-settings.tf: IPS is a real, non-default exception (2026-08-04)
+
+Checked `get/setting` (legacy API) for DPI and IPS. DPI itself is off
+(`enabled: false`), but device fingerprinting is on (`true`) -
+confirms the mechanism behind #7's client-icon finding. IPS is a
+different story entirely: **actively enabled in blocking mode**
+(`ips_mode: "ips"`) with a real, curated 11-category threat list
+(`botcc`, `dshield`, `emerging-exploit`, etc.) - genuinely hand-tuned,
+not a default sitting untouched. A real, deliberate exception to the
+"don't manage default-valued singletons" rule in README.md's Scope -
+that rule was always about avoiding *risk without benefit*, and this is
+exactly the opposite case.
+
+`utm_token` (a real secret-looking value in the live legacy JSON) has
+no attribute anywhere in `unifi_setting_ips`'s complete schema -
+checked the full list, not a curated summary, same discipline as every
+other resource here. Almost certainly a Ubiquiti-cloud-issued
+credential for signature updates, system-managed and not user-settable
+- nothing sensitive ends up in `security-settings.tf` as a result.
+
+Import ID: no "Import" section documented. First guess (`"default"`
+alone) failed, but with a genuinely helpful error - `"ID does not
+contain site part. Format should be 'site:id'"` - so it needed the
+same `site:id` format network/wlan's docs mentioned for cross-site
+imports, just apparently required here even for the default site.
+Fixed with `"default:<the ips setting's own legacy _id>"`, verified
+clean on the very next try: zero diff on the resource itself.
+
+## 13. clients.tf: two real fields almost silently destroyed (2026-08-04)
+
+First draft covered only `mac`/`name`/`fixed_ip`/`network_id` for the 6
+clients with genuinely active (`use_fixedip: true`) reservations. The
+dry-run caught real, live values that draft never captured at all:
+- `local_dns_record` - 5 of the 6 clients already have a real, working
+  local DNS name (e.g. `googlehome-bar.i3sec.com.au`).
+- `dev_id_override` - 5 of the 6 already have a real icon override set
+  (`2028` for the Google Home devices, `4133` for the Linux hosts).
+
+Leaving either undeclared would have **wiped both on apply** - not a
+cosmetic diff like earlier stages, an actual destructive one, caught
+only because the "verify every field via dry-run, don't trust your own
+field selection" discipline was applied here too. Fixed by pulling the
+*complete* raw record for each client (not just the subset of fields
+used to write the first draft) and declaring both explicitly with their
+real live values - these are existing state being preserved, not new
+choices invented here. Re-verified clean afterward.
+
+Also found and deliberately did NOT act on: `k8smaster`'s record has a
+"fixed AP" pin defined but disabled (`fixed_ap_mac` → `In-Wall-Office`,
+`fixed_ap_enabled: false`) - someone set this up before, presumably as
+an earlier attempt at the same roaming problem. Not in the
+`unifi_user` schema fetched for this file - worth checking again if a
+"pin a client to its nearest AP" approach is ever revisited.
+
+**Scope boundary held deliberately**: user's actual ask is all 76
+known clients eventually - cleaned-up names for every one, plus a
+`dev_id_override` for each. This file only covers the 6 where
+`fixed_ip` is genuinely active live - 13 more have `fixed_ip` present
+but `use_fixedip: false` (including `k8smaster-m`/`pinode-m`/
+`valinor-m`, which get their addresses from their own static
+NetworkManager config instead, see #10 - declaring `fixed_ip` for
+those would create a reservation that doesn't currently exist), and
+~57 more have only a name or nothing at all. 2 of the 6 genuinely-active
+clients have no live name at all (`name` is required) - not drafted,
+noted by MAC/IP instead of inventing one. None of the remaining ~70
+clients' names or icons were touched or guessed at - that's the user's
+call, explicitly deferred ("not sure, let's cover it when we get
+there"), not something to decide overnight.

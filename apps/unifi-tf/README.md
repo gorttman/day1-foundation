@@ -7,12 +7,55 @@ the Cloudflare edge. Scope is "everything that can be" managed as code:
 networks/VLANs, WLANs, per-device radio/physical settings, firewall,
 port forwards, static routes, static DHCP reservations, user groups.
 
-**Status:** stage 2 done — `unifi-tf-apply` ran clean against zero
-`unifi_*` resources (`Apply complete! Resources: 0 added, 0 changed, 0
-destroyed.`), proving the full pipeline (Postgres `pg` backend, sealed
-API key, provider auth) end to end. Stage 1's inventory pass is also
-done (see below). Still **zero `unifi_*` resources** — next is stage 3,
-writing and importing `network.tf` for real.
+**Status (2026-08-04, end of session):** real resources exist on the
+live gateway now, not just drafts — but only a deliberately-chosen
+subset, applied one at a time with a canary-first approach, all through
+throwaway `kubectl`-created Jobs against the real backend, **not**
+through the GitOps path (`unifi-tf-app.yml` is still not registered in
+`apps/kustomization.yml`, nothing here is Argo CD-managed yet):
+
+- **Applied for real**: `unifi_device.uap_shed` (canary — 3 low-stakes
+  IoT clients, zero detectable disruption), then
+  `in_wall_bedroom`/`in_wall_office`/`in_wall_bar`/`in_wall_lounge`
+  together. That second batch caused real, visible client roaming
+  (`Gateway`'s own radio picked up 17 clients displaced from the 4 APs)
+  — network stayed up, nothing lost, but it was a genuine blip, not a
+  non-event. See HISTORY.md #11 for the full canary methodology and
+  the roaming finding.
+- **Still draft-only, dry-run verified clean, NOT applied**:
+  `network.tf` (2 networks), `wlan.tf` (`ARDA_HOME`), the 3 remaining
+  devices (`switch_mainnet`, `switch_picluster`, `gateway` —
+  deliberately held back, different risk class, see HISTORY.md #10/#11),
+  `security-settings.tf` (IPS/threat prevention — genuinely
+  non-default, see below and HISTORY.md #12), and `clients.tf` (6 of 76
+  known clients, the only ones with unambiguous live data to capture —
+  see HISTORY.md #13). `firewall.tf`/`port-forward.tf` are intentionally
+  empty, confirmed live twice.
+- Every file above passes a combined dry-run together (`terraform
+  plan` against the real backend, real state, zero `apply`) with only
+  the two expected/benign diff patterns: synthetic create-time flags
+  (`allow_existing`, `forget_on_destroy`, etc.) and same-plan resource
+  references not yet resolved (`network_id`/`tx_power`-style "known
+  after apply", which self-resolves once the referenced resource is
+  actually applied for real).
+
+Next real step: your call on when (and whether) to wire the rest in
+for real, given the roaming blip from the last batch.
+
+## Prerequisite: the control path must be wired, not WLAN
+
+Both cluster nodes (`k8smaster`, `pinode-01` — the only two places the
+Sync-hook Job can land) used to reach the UDM's own API over `wlan0`,
+not their wired NICs, purely because `wlan0` happens to sit directly on
+the same subnet as the gateway's management address. That's a real
+risk specific to this app: a WLAN-disrupting apply (a radio change, the
+WLAN resource itself) could cut the very control path being used to
+manage it, mid-apply, with no visibility to recover. Fixed
+(2026-08-04) with a `/32` host route on both nodes — see HISTORY.md
+#10 for the full story, and `day0-infra-build`'s
+`unifi-tf-backend-route` branch for the codified version. Verify this
+is still in place (`ip route get 192.168.2.1` should show a wired
+device, not `wlan0`) before trusting any future apply here.
 
 ## Why this deviates from cloudflare-tf's risk profile
 
@@ -182,9 +225,26 @@ icon itself still isn't a stored, freestanding setting — but the
 classification *can* be overridden: `unifi_user`'s `dev_id_override`
 attribute ("Override the device fingerprint") is real and Terraform-
 manageable, which changes the icon as a side effect of overriding the
-fingerprint match. In scope for task 11 (see Scope above) for any client
-where it's actually been hand-overridden — same "only manage what's
-actually customized" principle as the `setting_*` singletons.
+fingerprint match. Confirmed with real live examples now, not just
+theory: the 5 Google Home/Linux-host clients in `clients.tf` already
+have real `dev_id_override` values set (`2028`, `4133`) — captured as
+existing state, not invented. What's still unresolved: what numeric
+`dev_id` values actually *mean* (no public Ubiquiti lookup table found,
+see HISTORY.md #7) — fine for preserving existing overrides, blocking
+for choosing new ones on the other ~70 clients. User's explicit call
+(2026-08-04): "not sure, let's cover it when we get there."
+
+## Security settings — a real exception to "don't manage defaults"
+
+`security-settings.tf` (`unifi_setting_ips`) is genuinely NOT at
+UniFi's default — IPS/threat prevention is actively enabled in
+blocking mode (`ips_mode: "ips"`) with a real, curated 11-category
+threat list, confirmed live via `get/setting` (`key=ips`). Exactly the
+kind of hand-tuned setting the "don't manage default singletons" rule
+in Scope above was always meant to include, not exclude. `utm_token` (a
+real secret-looking value in the live data) has no attribute anywhere
+in this provider's schema — almost certainly Ubiquiti-cloud-issued and
+system-managed, so nothing sensitive ends up in this file.
 
 ## Layout
 
@@ -193,15 +253,19 @@ actually customized" principle as the `setting_*` singletons.
 - `unifi-tf-job.yml` — Sync-hook `Job`, same `medium: Memory` `emptyDir`
   workaround as `cloudflare-tf` (this node's default `emptyDir` is
   NFS-backed and fails Terraform's state-lock `flock()`).
-- `unifi-tf-sealedsecret.yml` — not created yet, see "What's blocking a
-  real apply."
+- `unifi-tf-sealedsecret.yml` — exists, sealed for real (API key +
+  Postgres conn string). `wlan_arda_home_passphrase` is drafted as a
+  variable but NOT yet resealed into this file — `wlan.tf` isn't
+  applied for real yet, so there's nothing live depending on it.
 - `kustomization.yml` — `configMapGenerator` with the hash suffix left
   enabled, same reasoning as `cloudflare-tf` (this ConfigMap feeds a
   Sync-hook Job, not a Deployment — the hash is what makes a
-  content-only `.tf` edit visible to Argo CD's diff).
-- `terraform/versions.tf`, `variables.tf` — exist now. Resource files
-  (`network.tf`, `wlan.tf`, `device.tf`, `firewall.tf`,
-  `port-forward.tf`, `clients.tf`) are added one at a time, per the
-  rollout order above.
+  content-only `.tf` edit visible to Argo CD's diff). Still only lists
+  `versions.tf`/`variables.tf` — the rest of the resource files aren't
+  wired into the real ConfigMap yet (see Status above).
+- `terraform/` — `versions.tf`, `variables.tf`, `network.tf`,
+  `wlan.tf`, `device.tf`, `firewall.tf`, `port-forward.tf`,
+  `security-settings.tf`, `clients.tf` all exist and are dry-run
+  verified. See Status above for which are also applied for real.
 
 See `HISTORY.md` for the build log as each stage lands.
