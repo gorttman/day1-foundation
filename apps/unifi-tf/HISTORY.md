@@ -116,6 +116,52 @@ effect. Added to task 11's in-scope list for any client that's
 actually been hand-overridden this way - same "only manage what's
 actually customized" principle applied to the `setting_*` singletons.
 
+## 8. network.tf: a real dry-run-only workflow, and a wrong methodology corrected (2026-08-04)
+
+Before letting the real Sync-hook Job anywhere near `terraform import`
+against the live gateway, ran a throwaway, plan-only Job (own ConfigMap
++ Job, created directly with `kubectl`, never touching git/Argo CD,
+deleted after) using the same `pg` backend and sealed secrets as the
+real app - `terraform init` + `terraform plan`, no `apply` step at all,
+so nothing could be written even if something went wrong. It caught two
+real problems before they became live changes:
+
+**Wrong import ID format.** First attempt used the IDs from the
+Integration API's `networks` list (`id`/`external_id`, UUID-shaped) -
+failed with `Cannot import non-existent remote object`. This provider
+is built on the legacy REST API underneath, whose network ID is a
+different, 24-char ObjectId (`_id` in that API) - completely different
+namespace from the Integration API's ID, despite both nominally
+identifying "the same" object. Switched to the provider's `name=`
+import format instead (`id = "name=Default"`) - documented as a
+supported alternative, sidesteps needing either ID, self-documenting.
+
+**Wrong methodology for "safe to omit."** The working assumption going
+in was: if a field has no documented default, or matches a documented
+default, it's safe to leave undeclared - Terraform will treat it as
+computed and adopt whatever's live, zero drift. The dry-run plan proved
+this wrong on two counts:
+- `ipv6_ra_enable` (live: `true`) - leaving it undeclared didn't adopt
+  the live value, it planned to null it out.
+- `ipv6_ra_valid_lifetime` - the docs state a default of `86400`, but
+  this console's actual live value is `0`. Leaving it undeclared meant
+  Terraform planned to push the *documented* default onto live state,
+  overwriting the real value - the exact opposite of "safe."
+- `dhcp_start`/`dhcp_stop` on `Cluster-Backend` (DHCP disabled there) -
+  assumed these didn't matter since DHCP is off, but live still has
+  them stored, just inactive. Omitting them planned to null them out.
+  "Disabled" is not "unset" in UniFi's data model.
+
+**Corrected approach for every remaining stage (WLANs, devices,
+firewall, etc.)**: the dry-run plan output is the only real ground
+truth for "does this field need to be declared" - not the provider
+docs' stated defaults, not assumptions about `Computed` behavior. Every
+field in `network.tf` was verified against an actual zero-diff plan
+before being considered settled - final result: `Plan: 2 to import, 0
+to add, 0 to change, 0 to destroy.` This same
+create-a-throwaway-plan-only-Job-first workflow should be the default
+for every future resource type in this app, not just networks.
+
 ## 4. Device icons: confirmed not manageable (2026-08-04)
 
 Asked whether the UniFi UI's per-device-type icons (AP, switch, gateway
