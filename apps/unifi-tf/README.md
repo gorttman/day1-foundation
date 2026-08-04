@@ -58,6 +58,47 @@ manage it, mid-apply, with no visibility to recover. Fixed
 is still in place (`ip route get 192.168.2.1` should show a wired
 device, not `wlan0`) before trusting any future apply here.
 
+## Control-path risk map, and http_max_retries
+
+Two distinct risks worth separating clearly: whether *a device being
+changed* briefly bounces (normal, expected, unavoidable — a radio
+restart, a port flap) versus whether *our own request* gets caught in
+that bounce because its own network path happens to route through the
+device being changed. The first is fine. The second is what actually
+matters, confirmed via real `uplink` topology data, not assumed:
+
+- **Networks, WLANs, AP radios, firewall/security-settings/clients** —
+  no risk. The wired control path never routes through any of these.
+- **`Switch-PiCluster`** — real risk (the wired path runs through it),
+  but WLAN is a genuine, confirmed-independent bypass (it reaches
+  `Switch-MainNet` directly, never touching `Switch-PiCluster`).
+- **`Switch-MainNet`** — real risk, and no alternate physical path
+  exists — both the wired control route and any WLAN path converge
+  through it before reaching the Gateway. True chokepoint.
+- **`Gateway`** — it's the destination itself, not a hop; whether a
+  radio-only update on a combo AP+gateway device stays scoped to just
+  the radio subsystem is unconfirmed (inference, not tested).
+
+For the chokepoint case (`Switch-MainNet`, and as a backstop for
+`Switch-PiCluster` too): `versions.tf`'s provider block sets
+`http_max_retries = 15` — the provider's own built-in resilience
+(confirmed via its actual source, not just docs: retries
+`GET`/`HEAD`/`PUT`/`DELETE`/`OPTIONS` — device updates are `PUT` — on
+network/connection errors, 5xx, 429, or HTML-instead-of-JSON, linear
+backoff `500ms × attempt`). **Tested for real** (HISTORY.md #15): blocked
+the UDM's address on both nodes via a temporary blackhole route,
+launched an apply directly into the outage, restored connectivity
+after ~10s, and watched it complete cleanly with zero errors. Real
+finding: total recovery took **140 seconds**, not the 10-15s a naive
+reading of "500ms backoff" suggests — the first connection attempt,
+made mid-outage, has to exhaust its own OS-level timeout (blackholed
+connections don't fail fast) before the provider's retry logic even
+gets a chance to see a definitive error. Net effect: an apply caught by
+this scenario self-heals completely, no manual intervention, no
+ambiguous state — it just may take a couple of minutes longer, not
+seconds. `unifi-tf-job.yml`'s `activeDeadlineSeconds: 600` already
+covers this with room to spare.
+
 ## Why this deviates from cloudflare-tf's risk profile
 
 `cloudflare-tf` manages Cloudflare's edge — worst case on a bad apply is

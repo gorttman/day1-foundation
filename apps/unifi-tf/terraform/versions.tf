@@ -24,6 +24,19 @@ provider "unifi" {
   # same situation as qnap's origin override in cloudflare-tf/tunnel.tf.
   allow_insecure = true
 
+  # Real resilience against a device's own reprovisioning bouncing OUR
+  # request mid-flight (the leg-1/leg-2 distinction in HISTORY.md's
+  # switch discussion) - not a default (provider defaults to 0, retries
+  # disabled). Confirmed via the provider's actual source
+  # (internal/provider/base/client.go): retries GET/HEAD/PUT/DELETE/
+  # OPTIONS (device updates are PUT - confirmed in resource_device.go)
+  # on network/connection errors, 5xx, 429, or HTML-instead-of-JSON.
+  # Linear backoff: 500ms * attempt number. 15 retries = ~60s of
+  # cumulative retry budget (500 * 15*16/2 ms) - sized against the
+  # ~10-30s AP-radio-reprovision estimate with real headroom for a
+  # switch, not just matched to it.
+  http_max_retries = 15
+
   # Provisional: api_key is the preferred auth method (requires firmware
   # >= 9.0.108, see variables.tf). If the running firmware turns out to
   # be older, swap this block to `username = var.unifi_username` /

@@ -426,3 +426,49 @@ recently-active clients (33 remaining beyond the 6 already in
 other inventory question here - a raw API count and what a human
 actually sees in the UI can differ by 2x if the API returns unfiltered
 historical data by default.
+
+## 15. http_max_retries: tested for real, not just configured (2026-08-05)
+
+User pushed back hard on "no fix exists for `Switch-MainNet`" and was
+right to - there was a real, provider-native mechanism sitting
+undiscovered. Checked the actual provider source (not just docs):
+`internal/provider/base/client.go` retries `GET`/`HEAD`/`PUT`/`DELETE`/
+`OPTIONS` (device updates confirmed as `PUT` in `resource_device.go`)
+on network/connection errors, 5xx, 429, or HTML-instead-of-JSON, with
+linear backoff (`500ms * attempt number`). Default is `0` (disabled) -
+set explicitly to `15` in `versions.tf`'s provider block (~60s of
+cumulative retry budget).
+
+**Tested for real, not trusted on paper.** Blocked `192.168.2.1` on
+both nodes via a temporary `ip route replace blackhole 192.168.2.1/32`
+(iptables isn't installed on `pinode-01` - this is a cleaner,
+node-portable alternative using the same tooling as the wired-route
+fix itself), launched a targeted `apply -target=unifi_device.uap_shed`
+(already-imported, zero real change expected - safe target regardless
+of outcome) directly into the outage, held the block for ~10s, restored
+both nodes' routes, and watched.
+
+**Result: it worked completely - zero errors, clean `Apply complete!
+Resources: 0 added, 0 changed, 0 destroyed.`** But the real timing is
+worth recording honestly: total time from apply start to completion
+was **140 seconds**, not the 10-15s a naive read of "500ms backoff"
+would suggest. Reason: the first TCP connection attempt happened
+*during* the blackhole - a blackholed connection produces no immediate
+error (no RST, no ICMP unreachable, just silence), so that first
+attempt had to exhaust its own underlying OS/Go-runtime connection
+timeout before the provider's fast retry logic ever got a chance to
+see a definitive failure and act on it. Once it did, recovery was
+presumably near-instant, since the network had been back for over a
+minute by then.
+
+**Real, tested conclusion**: this makes a `Switch-MainNet` (or any
+device) apply that happens to get caught by its own reprovisioning
+self-healing - it will complete correctly with zero manual
+intervention and zero ambiguous "did it apply or not" state - but it
+can take a couple of minutes longer than normal, not seconds. Confirmed
+the real `unifi-tf-job.yml`'s `activeDeadlineSeconds: 600` already
+covers this comfortably, nothing to change there. This is a materially
+better answer than either "no fix" or "run Terraform on the UDM" (real
+architectural cost, discussed and set aside same session) - narrows,
+though doesn't perfectly close, the one gap (`Switch-MainNet`) that had
+no mitigation at all before this.
