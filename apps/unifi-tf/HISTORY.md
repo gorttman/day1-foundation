@@ -427,48 +427,159 @@ other inventory question here - a raw API count and what a human
 actually sees in the UI can differ by 2x if the API returns unfiltered
 historical data by default.
 
-## 15. http_max_retries: tested for real, not just configured (2026-08-05)
+## 15. The `Switch-MainNet` control-path problem: the full reasoning, the dead end, and the real fix (2026-08-05)
 
-User pushed back hard on "no fix exists for `Switch-MainNet`" and was
-right to - there was a real, provider-native mechanism sitting
-undiscovered. Checked the actual provider source (not just docs):
-`internal/provider/base/client.go` retries `GET`/`HEAD`/`PUT`/`DELETE`/
-`OPTIONS` (device updates confirmed as `PUT` in `resource_device.go`)
-on network/connection errors, 5xx, 429, or HTML-instead-of-JSON, with
-linear backoff (`500ms * attempt number`). Default is `0` (disabled) -
-set explicitly to `15` in `versions.tf`'s provider block (~60s of
-cumulative retry budget).
+Full narrative, not just the conclusion, because the reasoning path
+here is worth as much as the destination - several dead ends were
+correct reasoning that just didn't pay off, not wasted effort.
 
-**Tested for real, not trusted on paper.** Blocked `192.168.2.1` on
-both nodes via a temporary `ip route replace blackhole 192.168.2.1/32`
-(iptables isn't installed on `pinode-01` - this is a cleaner,
-node-portable alternative using the same tooling as the wired-route
-fix itself), launched a targeted `apply -target=unifi_device.uap_shed`
-(already-imported, zero real change expected - safe target regardless
-of outcome) directly into the outage, held the block for ~10s, restored
-both nodes' routes, and watched.
+### The starting problem
 
-**Result: it worked completely - zero errors, clean `Apply complete!
-Resources: 0 added, 0 changed, 0 destroyed.`** But the real timing is
-worth recording honestly: total time from apply start to completion
-was **140 seconds**, not the 10-15s a naive read of "500ms backoff"
-would suggest. Reason: the first TCP connection attempt happened
-*during* the blackhole - a blackholed connection produces no immediate
-error (no RST, no ICMP unreachable, just silence), so that first
-attempt had to exhaust its own underlying OS/Go-runtime connection
-timeout before the provider's fast retry logic ever got a chance to
-see a definitive failure and act on it. Once it did, recovery was
-presumably near-instant, since the network had been back for over a
-minute by then.
+After the wired-route fix (#10) and the 4-AP batch (#11), three
+devices were deliberately held back: `Switch-MainNet`,
+`Switch-PiCluster`, `Gateway`. User asked, reasonably: can we build
+something smarter than "just be careful" - specifically, can Terraform
+requests fail over to WiFi if the wired network itself is what's being
+changed, "or vice versa"?
 
-**Real, tested conclusion**: this makes a `Switch-MainNet` (or any
-device) apply that happens to get caught by its own reprovisioning
-self-healing - it will complete correctly with zero manual
-intervention and zero ambiguous "did it apply or not" state - but it
-can take a couple of minutes longer than normal, not seconds. Confirmed
-the real `unifi-tf-job.yml`'s `activeDeadlineSeconds: 600` already
-covers this comfortably, nothing to change there. This is a materially
-better answer than either "no fix" or "run Terraform on the UDM" (real
-architectural cost, discussed and set aside same session) - narrows,
-though doesn't perfectly close, the one gap (`Switch-MainNet`) that had
-no mitigation at all before this.
+### Mapping the real topology, not guessing at it
+
+Pulled actual `uplink` device-ID chains from the API rather than
+assuming symmetry between wired and wireless paths:
+
+```
+k8smaster (end0, wired)  → Switch-PiCluster → In-Wall-Office (wired passthrough) → Switch-MainNet → Gateway
+k8smaster (wlan0)        → [whichever AP]                                       → Switch-MainNet → Gateway
+```
+
+This produced a real, useful, asymmetric answer: WLAN genuinely
+bypasses `Switch-PiCluster` (confirmed - `In-Wall-Bar`'s uplink is
+`Switch-MainNet` directly, never touching `Switch-PiCluster`), so a
+WLAN-fallback procedure was proposed and would have worked for that
+one device. But `Switch-MainNet` is a true chokepoint - **every**
+path, wired or wireless, converges through it before reaching the
+Gateway. No routing trick exists that avoids it. Also discovered along
+the way: `Switch-PiCluster`'s "uplink" is `In-Wall-Office`, not a
+direct switch-to-switch link - that AP has wired passthrough ports and
+is physically an intermediate hop in the cluster's own wired chain,
+not just a WiFi radio.
+
+### Dead end #1: "can we just run Terraform on the UDM, it's Linux anyway?"
+
+Real, well-reasoned question, and initially I dismissed it too
+quickly. User's sharper reframing corrected that: separate the
+**device's own bounce** (UDM → device, "leg 2" - normal, expected,
+happens regardless of where Terraform runs, because the UDM's
+controller still has to push config to the physical switch over the
+same wire either way) from **our own request's path** (requester →
+UDM, "leg 1" - the actual risk, since if it physically routes through
+the device being changed, that device's normal leg-2 bounce can
+interrupt leg 1 too, either as a clean timeout or - worse - a request
+that succeeds server-side but whose response never arrives, so
+Terraform thinks it failed when it didn't).
+
+Running Terraform via localhost on the UDM would eliminate leg 1
+completely for every device, not just `Switch-PiCluster` - loopback
+traffic isn't a network call, so nothing on the physical LAN can
+disrupt it. Correct reasoning. Set aside anyway, for real reasons: the
+state backend (shared Postgres) lives in the cluster, so `apply` on the
+UDM would still need cluster connectivity for state locking - trading
+leg 1's risk for a different network dependency, not eliminating it,
+unless state also moved onto the UDM (bigger change, and this exact
+UDM model has no drive bay - minimal local storage). Firmware updates
+also replace the UDM's OS partition, so anything installed locally
+would likely need reinstalling after every update, on hardware
+Ubiquiti doesn't support third-party software on at all. A real,
+available option - just not a free one, and the cost didn't clearly
+beat the alternative found next.
+
+### "I refuse to let this win" - finding what was actually already there
+
+Pushed to find something better than "no fix" for `Switch-MainNet`.
+Correct instinct: the provider already had a built-in mechanism for
+exactly this, sitting undiscovered because the first docs pass hadn't
+covered it. `http_max_retries` on the provider block - confirmed via
+the actual Go source, not just the docs page (docs alone weren't
+enough to trust this, same discipline as every resource in this
+project):
+
+- `internal/provider/base/client.go`: retries on network/connection
+  errors, HTTP 5xx, 429, or an HTML body instead of JSON - exactly the
+  failure signature a mid-bounce connection drop produces.
+- Only idempotent methods retried: `GET`/`HEAD`/`PUT`/`DELETE`/
+  `OPTIONS` - **not** `POST`, deliberately, to avoid duplicate
+  creates. Checked `resource_device.go` specifically to confirm device
+  updates use `PUT` (`c.UpdateDevice(ctx, site, req)`, and a code
+  comment referencing "the wholesale-replace PUT" confirms it
+  directly) - meaning our actual at-risk operation (updating an
+  already-imported switch) is covered.
+- Backoff is **linear**, not exponential: `500ms * attempt number`
+  (500ms, 1s, 1.5s, 2s...). Default `http_max_retries` is `0` -
+  retries are opt-in, not automatic.
+- Set to `15` in `versions.tf` - `500 * (1+2+...+15)ms` ≈ 60 seconds
+  of cumulative retry budget.
+
+### Testing it for real, including a real OS-level surprise
+
+Docs and source review earn trust, but this project's whole discipline
+has been "verify against the live system, don't trust the paper
+trail" - so the retry mechanism got the same treatment as every
+resource before it: proven, not assumed.
+
+Simulated a real outage rather than guessing at behavior: blocked
+`192.168.2.1` on **both** cluster nodes (the Job could land on
+either) via a temporary `ip route replace blackhole 192.168.2.1/32` -
+discovered mid-setup that `iptables` isn't installed on `pinode-01`
+(likely nftables-based Debian trixie default), so the blackhole-route
+approach was used instead, which is arguably cleaner anyway - same
+`ip route` tooling as the original wired-route fix, no new dependency
+introduced, portable across both nodes without needing to know which
+firewall subsystem each one has.
+
+Test design: block **before** launching the Job, not during, so the
+very first API call hits the outage deterministically rather than
+hoping the timing lined up. Targeted `apply -target=unifi_device.uap_shed`
+specifically - already correctly imported, zero real diff expected, so
+the test carried no risk regardless of outcome. Held the block for
+~10 seconds, restored both nodes' routes, watched.
+
+**Result: complete success, zero errors** -
+`Apply complete! Resources: 0 added, 0 changed, 0 destroyed.` But the
+real timing was a genuine surprise worth recording precisely: **140
+seconds** total from apply start to completion, not the 10-15s a naive
+reading of "500ms linear backoff" would predict. Investigated why
+rather than just noting the number: the very first TCP connection
+attempt happened *during* the blackhole. A blackholed route produces
+no immediate error signal at all - no RST, no ICMP unreachable, just
+silence. So that first attempt had to fully exhaust its own
+underlying OS/Go-runtime connection timeout before it ever became a
+definitive failure the provider's fast retry logic could see and act
+on. Only once that first attempt finally gave up did the 500ms-backoff
+retry loop get a real chance to run - and it evidently succeeded
+almost immediately once it did, since the network had already been
+restored for over a minute by that point. In short: **the retry
+mechanism worked exactly as designed once it got the chance to; the
+long total time is an OS/TCP-layer characteristic of the *first*
+attempt, not a flaw in the provider's own logic.**
+
+### What this actually means going forward
+
+Important clarification the user made explicitly, worth stating
+plainly rather than leaving implicit: **the 140-second recovery is a
+worst case that only happens if a request is unlucky enough to be
+in-flight at the exact moment a device's own reprovisioning starts.**
+Most applies against `Switch-MainNet` (or anything else) won't hit
+this at all - the device isn't bouncing during a random API call most
+of the time, this is specifically about the rare overlap case, not
+routine overhead added to every apply. Confirmed the real
+`unifi-tf-job.yml`'s `activeDeadlineSeconds: 600` (10 minutes) already
+covers even the worst-case timing with room to spare - nothing needed
+there.
+
+Net result: converts `Switch-MainNet` from "no mitigation exists, be
+careful" to "a real, independently-verified safety net exists for the
+rare unlucky-timing case, self-heals with zero manual intervention and
+zero state ambiguity." Better than the "no fix" starting point, and a
+better cost/benefit than the "run Terraform on the UDM" alternative
+that was correctly reasoned through and set aside earlier in the same
+discussion.

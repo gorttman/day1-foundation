@@ -93,11 +93,23 @@ finding: total recovery took **140 seconds**, not the 10-15s a naive
 reading of "500ms backoff" suggests — the first connection attempt,
 made mid-outage, has to exhaust its own OS-level timeout (blackholed
 connections don't fail fast) before the provider's retry logic even
-gets a chance to see a definitive error. Net effect: an apply caught by
-this scenario self-heals completely, no manual intervention, no
-ambiguous state — it just may take a couple of minutes longer, not
-seconds. `unifi-tf-job.yml`'s `activeDeadlineSeconds: 600` already
+gets a chance to see a definitive error. **Important: this 140s figure is a worst case, not routine
+overhead** — it only happens if a request is unlucky enough to be
+in-flight at the exact moment a device's own reprovisioning starts.
+Most applies against `Switch-MainNet` won't hit this at all; the
+device isn't bouncing during a random API call most of the time. Net
+effect for the rare unlucky-timing case: the apply self-heals
+completely, no manual intervention, no ambiguous state — it just may
+take a couple of minutes longer, not seconds. `unifi-tf-job.yml`'s
+`activeDeadlineSeconds: 600` already
 covers this with room to spare.
+
+HISTORY.md #15 has the full reasoning path, not just this summary —
+worth reading if this ever needs revisiting, including the
+localhost-on-the-UDM alternative that was correctly reasoned through
+and deliberately set aside (real cost: state backend is remote
+Postgres, this UDM model has no drive bay, firmware updates wipe local
+installs) in favor of `http_max_retries` instead.
 
 ## Why this deviates from cloudflare-tf's risk profile
 
