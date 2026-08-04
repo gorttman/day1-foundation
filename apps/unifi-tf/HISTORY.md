@@ -64,6 +64,58 @@ expiry (see README.md's Secrets section) since there's no rotation
 automation in this pipeline yet - an automated rotation integration is
 a real future idea, just not built as part of this initial setup.
 
+## 5. Stage 2 verification hit a real snag - Argo CD parent/child sync (2026-08-04)
+
+Merged both PRs (`unifi-tf-scaffold` and the Postgres `unifi_tf`
+onboarding). First `unifi-tf-apply` run failed:
+`pq: password authentication failed for user "unifi_tf"`. Root cause
+wasn't the app - it was assuming a `kubectl patch ... refresh:hard` on
+the **parent** Argo CD Application (`day2-services`) would cascade to
+its **child** app (`postgres`). It doesn't: each child app is its own
+independent `Application` object with its own `selfHeal`-driven poll
+cycle against its own git path, entirely decoupled from the parent
+except for the parent creating/updating the child's `Application`
+resource itself. Since `postgres-app.yml` hadn't changed, refreshing
+the parent had nothing to do, and `postgres` just hadn't hit its next
+normal ~3-minute poll yet - so the `unifi_tf` role/database didn't
+exist when Terraform tried to connect. Fixed by refreshing `postgres`
+directly, then re-triggering `unifi-tf`'s own sync explicitly (Sync
+hooks don't self-retry - `kubectl patch application ... operation.sync`
+with the target revision). Second run succeeded cleanly: `No changes.
+... Apply complete! Resources: 0 added, 0 changed, 0 destroyed.`
+**Lesson for next time**: refresh the specific child app that actually
+changed, not its umbrella parent.
+
+## 6. Inventory pass - GET-only, confirmed live (2026-08-04)
+
+Ran the actual inventory pass (README.md's "Inventory" section has the
+full findings). Worth recording the process, not just the results:
+every single call was explicitly `-X GET` against either the official
+Integration API (`X-API-KEY` header) or the legacy REST API - confirmed
+in advance that REST semantics make `GET` inherently non-mutating, and
+verified after the fact that no `POST`/`PUT`/`DELETE` was ever issued.
+One assumption from secondary docs turned out wrong in a helpful way:
+the legacy REST API was expected to need cookie/session auth, not the
+API key - it accepted the same `X-API-KEY` header fine, so tasks
+9-11 won't need a separate username/password session after all.
+
+## 7. Client icons: a real, different answer from device icons (2026-08-04)
+
+Same question as #4, but for end-user clients (phones, laptops, IoT)
+instead of infrastructure devices (APs/switches) - and a different
+answer this time. Checked `unifi_user`'s full attribute list:
+`dev_id_override` ("Override the device fingerprint") is real and
+Terraform-manageable. Confirmed live via the legacy REST API's
+`rest/user` endpoint, which returns `dev_id`/`dev_cat`/`dev_family`/
+`fingerprint_engine_version`/`confidence` per client - UniFi
+auto-classifies every client via fingerprinting (MAC OUI, DHCP
+fingerprint, mDNS), and that classification is what picks the icon.
+There's still no literal "icon" field to set directly, but overriding
+the fingerprint via `dev_id_override` changes the icon as a side
+effect. Added to task 11's in-scope list for any client that's
+actually been hand-overridden this way - same "only manage what's
+actually customized" principle applied to the `setting_*` singletons.
+
 ## 4. Device icons: confirmed not manageable (2026-08-04)
 
 Asked whether the UniFi UI's per-device-type icons (AP, switch, gateway

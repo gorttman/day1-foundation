@@ -7,12 +7,12 @@ the Cloudflare edge. Scope is "everything that can be" managed as code:
 networks/VLANs, WLANs, per-device radio/physical settings, firewall,
 port forwards, static routes, static DHCP reservations, user groups.
 
-**Status:** credential sealed, app registered, **zero `unifi_*` resources
-yet** — this is stage 2 of the rollout (scaffold with zero resources,
-confirm the Job runs `init`/`plan`/`apply` cleanly end to end) once both
-this app's PR and the Postgres-onboarding PR are merged. The Postgres PR
-must merge first (or at the same time) — `terraform init` against the
-`pg` backend will fail if the `unifi_tf` role/database doesn't exist yet.
+**Status:** stage 2 done — `unifi-tf-apply` ran clean against zero
+`unifi_*` resources (`Apply complete! Resources: 0 added, 0 changed, 0
+destroyed.`), proving the full pipeline (Postgres `pg` backend, sealed
+API key, provider auth) end to end. Stage 1's inventory pass is also
+done (see below). Still **zero `unifi_*` resources** — next is stage 3,
+writing and importing `network.tf` for real.
 
 ## Why this deviates from cloudflare-tf's risk profile
 
@@ -97,6 +97,40 @@ connection string never lands in git; supplied at `terraform init` time
 via `-backend-config`, reading `TF_BACKEND_PG_CONN_STR` from
 `unifi-tf-secrets`.
 
+## Inventory (2026-08-04)
+
+Read-only pass against the live console — every call was HTTP `GET`
+against either the official Integration API
+(`/proxy/network/integration/v1/sites/{siteId}/...`, `X-API-KEY` auth)
+or the legacy REST API (`/proxy/network/api/s/default/rest/...`, which
+turned out to accept the same API key — no separate username/password
+session needed after all). Nothing was created, modified, or deleted;
+`GET` is inherently non-mutating for both APIs. Findings:
+
+- **Firewall model**: `firewall/zones` → `"Zone Based Firewall is not
+  configured"` — this console runs the **legacy** model. Both
+  `firewallgroup` and `firewallrule`/`portforward` are currently
+  **empty** — a clean slate for tasks 9/10, nothing existing to
+  reverse-engineer.
+- **Networks (2 user-facing, plus system WAN)**: `Default` (VLAN 1,
+  system default) and `Cluster-Backend` (VLAN 10 — the k3s cluster's
+  network). Legacy `networkconf` also lists `Internet 1`
+  (`purpose: wan`) — system-managed, not a `unifi_network` candidate.
+- **WLANs (1)**: `ARDA_HOME`, WPA2-Personal, dual-band (2.4 + 5 GHz).
+- **Devices (8)**: 2 switches (`Switch-MainNet`, `Switch-PiCluster`,
+  both US 8 PoE 150W) and 6 APs (`UAP - Shed` / AC Pro,
+  `In-Wall-Office` / AC IW, `In-Wall-Bedroom` / IW HD, `In-Wall Lounge`
+  / U6 IW, `In-Wall-Bar` / U6 IW). No AP is literally named "study" —
+  `In-Wall-Office` is the likely candidate for the roaming problem's
+  "study AP," not confirmed. The Integration API's per-device `GET`
+  only returns *current observed* radio state (channel/width/frequency),
+  not the full configurable field set (`tx_power_mode`, `min_rssi`,
+  etc.) — task 8's actual read/import will need the legacy REST API for
+  those, same as it turned out firewall/port-forward did.
+- **31 live clients** currently connected — a different, larger set
+  than task 11's static/DHCP-reservation `unifi_user` entries, not yet
+  pulled separately.
+
 ## Scope
 
 **Managed**, in rollout order:
@@ -110,12 +144,14 @@ via `-backend-config`, reading `TF_BACKEND_PG_CONN_STR` from
   the sticky-AP roaming problem (devices in the study staying connected
   to the bar AP instead of the nearer one) — minimum-RSSI kick and
   per-radio tuning live here.
-- **Firewall** — whichever model the inventory pass finds actually live
-  on the controller (zone-based or legacy), not guessed up front.
+- **Firewall** — legacy model (`firewall_group`/`firewall_rule`),
+  confirmed by the inventory pass (see below), not zone-based.
 - **Port forwards** (`unifi_port_forward`) and **static routes**
   (`unifi_static_route`).
 - **Static client/DHCP reservations** (`unifi_user`) and **user
-  groups** (`unifi_user_group`).
+  groups** (`unifi_user_group`) — including each client's `name`,
+  `note`, `fixed_ip`, `network_id`, `user_group_id`, `blocked` state,
+  and `dev_id_override` (see "On client icons" below).
 - Anything else inventory turns up as actually configured (DNS records,
   RADIUS profile).
 
@@ -130,11 +166,25 @@ via `-backend-config`, reading `TF_BACKEND_PG_CONN_STR` from
   a whole-site setting) with no benefit. Add individually later only if
   one is actually hand-tuned.
 
-**On device icons:** checked — there's no icon/display-type attribute
-anywhere in the `filipowm/unifi` provider's `unifi_device` resource. The
-per-device-type pictograms in the UniFi UI are derived automatically
-from the hardware model/shortname the device reports on adoption, not a
-stored setting, so there's nothing to manage there.
+**On infrastructure device icons** (APs/switches/gateway): checked —
+there's no icon/display-type attribute anywhere in the `filipowm/unifi`
+provider's `unifi_device` resource. Those pictograms are derived
+automatically from the hardware model/shortname the device reports on
+adoption, not a stored setting, so there's nothing to manage there.
+
+**On client icons** (end-user devices — phones, laptops, IoT): different
+answer. UniFi classifies every client via automatic fingerprinting (MAC
+OUI, DHCP fingerprint, mDNS, etc.) into a `dev_id`/`dev_cat`/`dev_family`
+combination that decides which icon renders — confirmed live via the
+legacy REST API's `rest/user` endpoint, which returns those fields per
+client alongside a `fingerprint_engine_version`/`confidence` score. The
+icon itself still isn't a stored, freestanding setting — but the
+classification *can* be overridden: `unifi_user`'s `dev_id_override`
+attribute ("Override the device fingerprint") is real and Terraform-
+manageable, which changes the icon as a side effect of overriding the
+fingerprint match. In scope for task 11 (see Scope above) for any client
+where it's actually been hand-overridden — same "only manage what's
+actually customized" principle as the `setting_*` singletons.
 
 ## Layout
 
