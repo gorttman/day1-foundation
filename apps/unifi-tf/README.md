@@ -7,34 +7,30 @@ the Cloudflare edge. Scope is "everything that can be" managed as code:
 networks/VLANs, WLANs, per-device radio/physical settings, firewall,
 port forwards, static routes, static DHCP reservations, user groups.
 
-**Status (2026-08-04, end of session):** real resources exist on the
-live gateway now, not just drafts — but only a deliberately-chosen
-subset, applied one at a time with a canary-first approach, all through
-throwaway `kubectl`-created Jobs against the real backend, **not**
-through the GitOps path (`unifi-tf-app.yml` is still not registered in
+**Status (2026-08-05):** real resources exist on the live gateway now
+across every resource type in this app — all through throwaway
+`kubectl`-created Jobs against the real backend, **not** through the
+GitOps path (`unifi-tf-app.yml` is still not registered in
 `apps/kustomization.yml`, nothing here is Argo CD-managed yet):
 
 - **Applied for real**: `unifi_device.uap_shed` (canary — 3 low-stakes
   IoT clients, zero detectable disruption), then
   `in_wall_bedroom`/`in_wall_office`/`in_wall_bar`/`in_wall_lounge`
-  together. That second batch caused real, visible client roaming
-  (`Gateway`'s own radio picked up 17 clients displaced from the 4 APs)
-  — network stayed up, nothing lost, but it was a genuine blip, not a
-  non-event. See HISTORY.md #11 for the full canary methodology and
-  the roaming finding.
-- **Still draft-only, dry-run verified clean, NOT applied**:
-  `network.tf` (2 networks), `wlan.tf` (`ARDA_HOME`), the 3 remaining
-  devices (`switch_mainnet`, `switch_picluster`, `gateway` —
-  deliberately held back, different risk class, see HISTORY.md #10/#11),
-  `security-settings.tf` (IPS/threat prevention — genuinely
-  non-default, see below and HISTORY.md #12), and `clients.tf` (30 of
-  39 recently-active known clients — scope corrected twice on
-  2026-08-05, see HISTORY.md #13/#14/#16: most already have a real
-  `name` and/or `dev_id_override` set live, including 10 captured via
-  `hostname` where `name` itself was empty — only 4 clients genuinely
-  have neither and still need the user's input).
-  `firewall.tf`/`port-forward.tf` are intentionally empty, confirmed
-  live twice.
+  together (that batch caused real, visible client roaming — see
+  HISTORY.md #11). Then, once dry-run verified clean, all of
+  `network.tf` (2 networks), `wlan.tf` (`ARDA_HOME`),
+  `security-settings.tf` (IPS), and 30 of `clients.tf`'s clients —
+  applied together as one explicitly `-target`-scoped batch specifically
+  to keep the 3 held-back devices out of the blast radius (HISTORY.md
+  #17). `Apply complete! Resources: 39 imported, 0 added, 35 changed, 0
+  destroyed.`
+- **Still NOT applied**: `switch_mainnet`, `switch_picluster`,
+  `gateway` — deliberately held back, different risk class (HISTORY.md
+  #10/#11), now backed by `http_max_retries` (HISTORY.md #15) but
+  device-side risk to whatever's plugged into them is unchanged. 4 of
+  39 clients still genuinely need the user's naming input
+  (HISTORY.md #16). `firewall.tf`/`port-forward.tf` are intentionally
+  empty, confirmed live multiple times.
 - Every file above passes a combined dry-run together (`terraform
   plan` against the real backend, real state, zero `apply`) with only
   the two expected/benign diff patterns: synthetic create-time flags

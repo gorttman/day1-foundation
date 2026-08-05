@@ -636,3 +636,31 @@ capturing. The actual bar is narrower than it felt: don't invent
 content, but *do* capture everything that already exists, including
 secondary/fallback fields like `hostname`, not just the primary
 `name` field.
+
+## 17. Zero-risk batch applied for real: networks, WLAN, security settings, 30 clients (2026-08-05)
+
+First real apply of `network.tf`, `wlan.tf`, `security-settings.tf`,
+and all 30 `clients.tf` resources - previously drafted and dry-run
+verified only. Scoped with 39 explicit `-target` flags (generated
+programmatically from the four files' resource declarations, not
+hand-typed) specifically to exclude every `device.tf` resource,
+including the 5 already-applied devices and, critically, the 3
+deliberately-held-back ones (`switch_mainnet`, `switch_picluster`,
+`gateway`) - an untargeted apply would have swept those in too, which
+is exactly what staying scoped was for.
+
+Ran the same discipline as every real apply this session: a final
+confirmation plan immediately before applying (things can drift
+between a dry-run and the real moment), confirmed `39 to import, 0 to
+add, 35 to change, 0 to destroy` matched exactly, then the real apply.
+Result: `Apply complete! Resources: 39 imported, 0 added, 35 changed, 0
+destroyed.` Spot-checked live afterward (not just trusted the exit
+code): `valinor` and `Bretts-MBP` both now have their real `name` set
+(they didn't before - these were 2 of the 10 hostname-derived
+additions from #16), and `ARDA_HOME` is confirmed still enabled and
+intact.
+
+Nothing here is Argo CD-managed yet - this was, like every other real
+change this session, a throwaway `kubectl`-created Job against the
+real backend, not the GitOps pipeline. `unifi-tf-app.yml` still isn't
+registered in `apps/kustomization.yml`.
