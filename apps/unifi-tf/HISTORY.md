@@ -110,8 +110,12 @@ a red sync notification and no lost Wi-Fi.
 2. Recreate the `ARDA_HOME` SSID in the Network UI (name + sealed
    passphrase) to bring Wi-Fi back immediately.
 3. `terraform state list` to confirm the WLAN was the only casualty.
-4. Re-enable sync. With the guard in place, a lingering divergence now
-   fails safe instead of destroying.
+4. Leave the app disabled. `unifi-tf-app.yml` now ships with
+   `syncPolicy: {}` (automated sync off) so nothing re-applies on its own
+   - a live `kubectl patch` freeze alone is not durable, because an
+   app-of-apps reconcile would restore whatever git says. Re-arm the
+   `automated` block deliberately, only once the destroy-guard has been
+   confirmed against a real plan/apply.
 
 **Lesson:** never `terraform apply` this app from a branch whose config
 isn't what lands on `main`. The shared pg backend means a branch apply

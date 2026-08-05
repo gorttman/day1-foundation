@@ -17,7 +17,16 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: infra
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
+  # Automated sync DISABLED 2026-08-05 after the WLAN-wipe incident
+  # (see HISTORY.md #5): a config/state divergence let a selfHeal apply
+  # destroy the live house + cluster WLANs. Manual-sync only until the
+  # destroy-guard in unifi-tf-job.yml is verified end to end and this app
+  # is deliberately re-armed. A live `kubectl patch` freeze is not enough
+  # on its own - if an app-of-apps reconciles this Application from git it
+  # would restore whatever is committed here, so the disable has to live
+  # in git too. To re-arm later, restore:
+  #   syncPolicy:
+  #     automated:
+  #       prune: true
+  #       selfHeal: true
+  syncPolicy: {}
