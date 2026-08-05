@@ -28,7 +28,30 @@ spec:
               cp -r /workspace-ro/. /workspace/
               cd /workspace
               terraform init -input=false -backend-config="conn_str=${TF_BACKEND_PG_CONN_STR}"
-              terraform plan -input=false -out=tfplan
+              terraform plan -input=false -no-color -out=tfplan | tee plan.txt
+
+              # Destroy-guard. This app manages the live household gateway and
+              # APs, so an automated selfHeal apply must NEVER delete a live
+              # network object on its own. A config/state divergence - e.g. a
+              # resource that was `terraform apply`ed from an unmerged feature
+              # branch and so exists in the shared pg state but is absent from
+              # main's config - otherwise makes `apply` silently DESTROY it.
+              # That is exactly what took the house WLAN offline on 2026-08-05
+              # (see HISTORY.md #5). If the plan would destroy anything, fail
+              # the sync loudly instead of applying; a human reviews the plan
+              # above and, only if the deletion is truly intended, re-runs with
+              # UNIFI_TF_ALLOW_DESTROY=true set on the Job.
+              destroy_count=$(sed -n 's/^Plan: .*, \([0-9]\{1,\}\) to destroy\..*/\1/p' plan.txt)
+              destroy_count=${destroy_count:-0}
+              if [ "${destroy_count}" -gt 0 ] && [ "${UNIFI_TF_ALLOW_DESTROY:-false}" != "true" ]; then
+                echo "REFUSING TO APPLY: plan would destroy ${destroy_count} resource(s)." >&2
+                echo "Blocked to stop an automated selfHeal from deleting live network" >&2
+                echo "objects due to config/state divergence. Review the plan above." >&2
+                echo "If the destroy is genuinely intended, set UNIFI_TF_ALLOW_DESTROY=true" >&2
+                echo "on this Job (env), sync once, then remove it again." >&2
+                exit 1
+              fi
+
               terraform apply -input=false tfplan
           envFrom:
             - secretRef:

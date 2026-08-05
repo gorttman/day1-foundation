@@ -73,3 +73,54 @@ display-type field anywhere. These are derived client-side from the
 hardware model/shortname the device reports on adoption, not a stored
 API setting. Nothing to do here, just worth recording so the question
 doesn't get re-asked and re-researched later.
+
+## 5. INCIDENT: a stale-branch WLAN destroyed the house Wi-Fi (2026-08-05)
+
+**Symptom:** the whole household Wi-Fi went offline. Wired stayed up.
+
+**Root cause: config/state divergence, detonated by an unrelated sync.**
+In an earlier session a `wlan.tf` (the `ARDA_HOME` WLAN) was written and
+`terraform apply`ed for real — creating a `unifi_wlan.ARDA_HOME` object
+in the shared Postgres state — but that work lived on a feature branch
+that was **never merged to `main`**. `wlan.tf` therefore exists in no
+branch, and `main`'s config (the `configMapGenerator` in
+`kustomization.yml`) still lists only `versions.tf` + `variables.tf`.
+Net result: the WLAN existed **in state but not in config**.
+
+The trigger was the very next commit to land on `main` — `6f5c84d`,
+which only sealed the WLAN passphrase field into the SealedSecret. That
+changed the `unifi-tf-secrets` Secret, Argo CD synced the app (which has
+`syncPolicy.automated.selfHeal: true`), the Sync-hook Job ran
+`terraform apply`, Terraform saw a resource in state but absent from
+config → **planned a destroy → deleted the live WLAN.** House offline.
+
+The passphrase commit did not cause the bug; it tripped a landmine that
+had been armed the moment `wlan.tf` was applied-but-not-merged.
+
+**Fix (this change): a destroy-guard in `unifi-tf-job.yml`.** The Job now
+parses the plan between `plan` and `apply`; if the plan would destroy any
+resource it fails the sync loudly instead of applying, unless a human
+sets `UNIFI_TF_ALLOW_DESTROY=true`. An automated selfHeal can now add and
+change, but it can never silently delete a live network object — which is
+precisely the failure mode above. This would have turned the outage into
+a red sync notification and no lost Wi-Fi.
+
+**Recovery (manual, once LAN access is regained):**
+1. `argocd app set unifi-tf --sync-policy none` — freeze the app first.
+2. Recreate the `ARDA_HOME` SSID in the Network UI (name + sealed
+   passphrase) to bring Wi-Fi back immediately.
+3. `terraform state list` to confirm the WLAN was the only casualty.
+4. Leave the app disabled. `unifi-tf-app.yml` now ships with
+   `syncPolicy: {}` (automated sync off) so nothing re-applies on its own
+   - a live `kubectl patch` freeze alone is not durable, because an
+   app-of-apps reconcile would restore whatever git says. Re-arm the
+   `automated` block deliberately, only once the destroy-guard has been
+   confirmed against a real plan/apply.
+
+**Lesson:** never `terraform apply` this app from a branch whose config
+isn't what lands on `main`. The shared pg backend means a branch apply
+mutates the *same* state `main` reconciles against — so a real apply and
+its merge to `main` must happen together, or `main` will "correct" the
+difference by deleting whatever the branch added. Re-adding `wlan.tf`
+later must follow the README's rollout rule: `terraform import` against
+the live object, committed to `main` in the same change.

@@ -7,12 +7,22 @@ the Cloudflare edge. Scope is "everything that can be" managed as code:
 networks/VLANs, WLANs, per-device radio/physical settings, firewall,
 port forwards, static routes, static DHCP reservations, user groups.
 
-**Status:** credential sealed, app registered, **zero `unifi_*` resources
-yet** — this is stage 2 of the rollout (scaffold with zero resources,
-confirm the Job runs `init`/`plan`/`apply` cleanly end to end) once both
-this app's PR and the Postgres-onboarding PR are merged. The Postgres PR
-must merge first (or at the same time) — `terraform init` against the
-`pg` backend will fail if the `unifi_tf` role/database doesn't exist yet.
+**Status:** credential sealed, app registered. `main`'s config carries
+**zero `unifi_*` resources** — but note that the shared pg state is *not*
+necessarily empty: a `wlan.tf`/`ARDA_HOME` WLAN was applied from a
+feature branch that never merged, and on 2026-08-05 the resulting
+config/state divergence caused an automated apply to destroy the live
+WLAN and take the house Wi-Fi offline (full write-up in HISTORY.md #5).
+The apply Job now has a **destroy-guard** (see `unifi-tf-job.yml`): an
+automated selfHeal sync can add/change but will refuse to *destroy* any
+resource without an explicit `UNIFI_TF_ALLOW_DESTROY=true`, failing the
+sync loudly instead. Re-adding any resource file must follow the rollout
+rule below — `terraform import` against the live object, committed to
+`main` in the same change — never applied from a branch first.
+
+The Postgres-onboarding PR must merge first (or at the same time) —
+`terraform init` against the `pg` backend will fail if the `unifi_tf`
+role/database doesn't exist yet.
 
 ## Why this deviates from cloudflare-tf's risk profile
 
