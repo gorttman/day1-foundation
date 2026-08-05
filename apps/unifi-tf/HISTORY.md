@@ -664,3 +664,55 @@ Nothing here is Argo CD-managed yet - this was, like every other real
 change this session, a throwaway `kubectl`-created Job against the
 real backend, not the GitOps pipeline. `unifi-tf-app.yml` still isn't
 registered in `apps/kustomization.yml`.
+
+## 18. Switch-PiCluster risk assessment: much bigger blast radius than assumed (2026-08-05)
+
+User pushed for a deep-dive before deciding on `Switch-PiCluster`/
+`Switch-MainNet`: "what else is going on" and specifically questioned
+"pinode-01 has no NFS mounts" as suspicious. Right to push - both led
+to real corrections, not confirmations of the original assessment.
+
+**Correction #1**: `mount -t nfs4` on `pinode-01` returned empty
+because `pinode-01` actually uses **NFSv3**, not NFSv4 - the version
+filter hid everything. Real picture: `pinode-01` is a diskless/netboot
+Pi - its entire root filesystem (`/`, `/etc`, `/var`, `/root`, `/home`,
+`/tmp`) is NFS-mounted from `k8smaster` (`192.168.1.10`), plus several
+app PVCs including `postgres-0`'s actual data volume
+(`postgres-data-postgres-0`, storage class `nfs-client`) - contradicts
+what was said moments earlier ("postgres uses local storage" was never
+actually verified, just assumed).
+
+**Correction #2, bigger**: traced `192.168.1.30` (the address nearly
+every QNAP-backed mount on `k8smaster` actually connects to,
+regardless of whether the mount command specified `qnap.i3sec.com.au`
+or `192.168.2.30`) via `ip neigh` - it resolves to MAC
+`00:08:9b:bb:ee:da`, which is `valinor-m`, the Cluster-Backend NIC of
+the same physical device as `valinor` (`00:08:9b:bb:ee:d9`,
+`192.168.2.30`) - the QNAP NAS itself. Confirmed via the Integration
+API that **both** of the QNAP's network identities (`valinor` and
+`valinor-m`) are `WIRED` and directly uplinked to `Switch-PiCluster`,
+same as `k8smaster-m`/`pinode-m`. The QNAP is physically plugged into
+this exact switch.
+
+**What this actually means**: `Switch-PiCluster` isn't just carrying
+Pi-cluster-internal traffic - it's the QNAP's only physical path to
+the rest of the network. Every self-hosted app backed by QNAP storage
+(Immich, Paperless, books, media, Obsidian vault, downloads, cold
+storage, backups - all confirmed in the live mount table) depends on
+this switch stanying up, not just `k8smaster`/`pinode-01`'s own
+node-level concerns. Important corollary: this is true even for apps
+whose *front door* is WLAN-only (ingress-nginx/traefik/pihole all
+serve via `wlan-pool` MetalLB VIPs, confirmed - no service currently
+uses the configured-but-unused `wired-pool`) - a WLAN-only user
+browsing Paperless or Immich would still see a brief hang if their
+request needs to read/write QNAP storage during a bounce.
+
+**What hasn't changed**: every mount involved - QNAP-backed NFSv4.1
+and internal-cluster NFSv3 alike - is confirmed `hard`+`proto=tcp`.
+The survivability mechanism (block-and-retry, no errors surfaced to
+applications) is uniform and already verified live. What changed is
+the *scope* of what's relying on that mechanism working during a
+`Switch-PiCluster` provision event, not whether the mechanism itself
+works. Bigger blast radius, same underlying safety net - a genuinely
+different risk calculus than the original "just NFS for a couple of
+PVCs" assessment, worth deciding with this full picture in view.
