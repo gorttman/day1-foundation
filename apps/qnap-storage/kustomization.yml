@@ -5,3 +5,4 @@ resources:
   - qnap-books-pv.yml
   - qnap-vault-pv.yml
   - qnap-immich-pv.yml
+  - qnap-paperless-pv.yml

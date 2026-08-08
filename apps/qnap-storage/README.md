@@ -21,6 +21,7 @@ originally caught.
 | qnap-books | /books | calibre-web (rw) - was kavita (ro) until 2026-07-17 |
 | qnap-vault | /vault/obsidian | obsidian (rw), RWO not RWX - see obsidian directories note below |
 | qnap-immich | /immich | apps/immich (day2, 2026-08-04) - immich-server (rw), RWO not RWX, root:users 2775 |
+| qnap-paperless | /paperless/media | apps/paperless (day2, 2026-08-08) - paperless-media (rw), RWO not RWX |
 
 Planned as apps get their config pass: media (jellyfin + sonarr/radarr),
 photos (the general Drive-photos migration, distinct from Immich's own
@@ -352,6 +353,32 @@ set here doesn't survive a Paperless restart, only the `2775` mode
 does. Functionally fine since inbox-router also runs as UID 1000 (so
 owner-match covers it), but worth knowing if group-based reasoning
 about this directory's permissions stops making sense later.
+
+## paperless-media migrated to the QNAP (2026-08-08)
+
+The "wrong home" gap flagged above (`paperless-media` on `nfs-client`,
+k8smaster's own local-disk export, not the QNAP) got fixed - real
+financial/legal documents, found during a backup-coverage audit to have
+*zero* backup mechanism of any kind, not even a same-disk one. Same fix
+Obsidian's vault already got: migrate to a QNAP-backed static PV.
+
+Created `/paperless/media` as a sibling of the existing `consume/`
+directory (not nested inside it - `consume/`'s own mount uses
+`subPath: consume`, so `media/` sitting alongside it at the export root
+never lands inside Paperless's watched consume directory). Chowned
+`1000:1000`, mode `2775`, matching `consume/`'s ownership - though per
+the note above, Paperless's own boot-time chown means this doesn't
+strictly matter long-term, kept for consistency rather than necessity.
+
+Existing content (176 files, 19M) copied via `rsync -av` from the old
+`nfs-client`-backed PV's real path
+(`/srv/nfs/syslog-store/paperless-paperless-media-pvc-...`) to
+`/paperless/media` *before* the PVC was repointed, verified by matching
+file count and total size on both sides - same sequencing the Obsidian
+migration used, so there was never a window where the data existed in
+neither place. `paperless-data` (cache/index, not primary documents,
+and separately covered by the Postgres backup for anything that
+actually matters) stays on `nfs-client` - not migrated, not worth it.
 
 ## immich directory (2026-08-04)
 

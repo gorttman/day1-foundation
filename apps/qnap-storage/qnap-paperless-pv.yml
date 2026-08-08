@@ -1,0 +1,43 @@
+# Static NFS PersistentVolume onto a QNAP (valinor-m) share. One PV per
+# QNAP directory - see README.md for the pattern and the prerequisites
+# (FQDN resolution on every node via day0-infra-build's qnap_client role).
+#
+# path is /paperless/media, a subdirectory of the /paperless export -
+# same pattern as qnap-vault's /vault/obsidian. /paperless's export
+# root already holds consume/ (mounted directly by paperless-deployment.yml
+# via subPath, not a PV - see that app's README), so media/ sits
+# alongside it as a sibling subdirectory, not nested inside consume's
+# watched directory.
+#
+# Migrated 2026-08-08 off the nfs-client StorageClass (k8smaster's own
+# local disk) - real financial/legal documents had zero backup coverage
+# there, same "wrong home" pattern already fixed for Obsidian's vault.
+# Existing content (176 files, 19M) copied across and verified
+# (file count + size match) before the PVC was ever repointed.
+#
+# accessModes is ReadWriteOnce - paperless is single-replica
+# (replicas: 1), no multi-writer use case.
+#
+# storageClassName is a deliberate non-provisioned marker class: it
+# stops the default local-path provisioner from intercepting claims and
+# lets PVCs bind these by class + volumeName.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: qnap-paperless
+  labels:
+    app.kubernetes.io/part-of: qnap-storage
+    argocd.argoproj.io/managed-by: argocd
+spec:
+  capacity:
+    storage: 10Gi  # informational for NFS; not enforced
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: qnap-static
+  mountOptions:
+    - vers=4
+    - noatime
+  nfs:
+    server: 192.168.1.30
+    path: /paperless/media
