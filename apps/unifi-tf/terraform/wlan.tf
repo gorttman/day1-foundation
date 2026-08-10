@@ -1,22 +1,20 @@
-# Written to match live state exactly, pulled from the legacy REST API's
-# wlanconf endpoint during this stage's inventory (HISTORY.md #9) - not
-# guessed. DRAFT: not yet wired into kustomization.yml, not imported for
-# real yet - dry-run verified clean (3 to import, 0 to change), same
-# discipline as network.tf (HISTORY.md #8/#9).
+# DRAFT - NOT committed to git, per explicit instruction. Validated via
+# `terraform plan` only, run out-of-band against the same postgres
+# backend/live credentials, entirely outside the git-tracked
+# configMapGenerator so nothing here is picked up by the real
+# unifi-tf-apply sync-hook Job unless and until it's deliberately
+# committed later.
 #
-# Passphrase is a real secret (pulled live as plaintext during
-# inventory) - never written here. TF_VAR_wlan_arda_home_passphrase,
-# same sealed-secret treatment as the UniFi API key itself.
+# Written to match live state exactly (pulled 2026-08-10 via the legacy
+# REST API's wlanconf endpoint), except for two fields being restored
+# to their pre-2026-08-05-incident values: fast_roaming_enabled and
+# multicast_enhance. See homelab-book chapter 006 and
+# unifi-tf/HISTORY.md #5 for the full incident this is fixing.
 #
-# network_id references unifi_network.default (network.tf) instead of
-# hardcoding its ID - both resources import in the same plan/apply, so
-# this is a real dependency, not a magic string that could drift.
-#
-# user_group_id is hardcoded to the built-in "Default" user group's
-# legacy ID (5dcadb092d387c04fa8ff617, confirmed via legacy rest/usergroup
-# - unmodified, no rate limits) - there's no unifi_user_group resource
-# yet to reference (that's task 11). Revisit once user groups are
-# managed for real.
+# network_id references unifi_network.default.id now that network.tf
+# (pulled from the unifi-tf-inventory-findings branch) is included in
+# this scratch test too - a real dependency, matching the original
+# never-merged draft's intent, not a hardcoded magic string.
 
 resource "unifi_wlan" "arda_home" {
   name          = "ARDA_HOME"
@@ -29,43 +27,38 @@ resource "unifi_wlan" "arda_home" {
 
   wlan_bands = ["2g", "5g"] # live: wlan_band "both" / wlan_bands ["2g","5g"]
 
-  # No documented default for any of these - explicit to avoid an
-  # unstated assumption, matching live exactly.
   hide_ssid          = false
   is_guest           = false
   mac_filter_enabled = false
+  # Raw legacy JSON shows "allow", but the provider's own imported-state
+  # read reports "deny" regardless while mac_filter is disabled - same
+  # quirk the original draft documented, confirmed again via this
+  # plan run. Functionally inert either way; matching the provider's
+  # actual read to get a true zero-diff on this field.
+  mac_filter_policy  = "deny"
   wpa3_support       = false
   wpa3_transition    = false
-  multicast_enhance  = true # live: mcastenhance_enabled
 
-  # Live values differ from the provider's documented defaults - must be
-  # explicit (same lesson as network.tf's ipv6_ra_valid_lifetime).
-  fast_roaming_enabled = true # live true, documented default false - already on,
-                               # relevant to the sticky-AP roaming problem (task 8)
+  # --- The two restorations ---
+  # Both were lost when the SSID was rebuilt from UI defaults after the
+  # 2026-08-05 accidental-destroy incident (confirmed via read-only
+  # diff against the pre-incident live state). fast_roaming_enabled is
+  # 802.11r fast BSS transition - the actual fix for the sticky-AP
+  # roaming problem that motivated this whole project.
+  fast_roaming_enabled = true
+  multicast_enhance    = true
 
-  # mac_filter_policy: raw legacy JSON shows "allow", but mac_filter is
-  # disabled (mac_filter_enabled false, both sides) and the provider's
-  # own imported-state read reports "deny" regardless - caught via
-  # dry-run, not by reading the JSON myself. Trusting the provider's
-  # actual read over my own raw-field interpretation, per the
-  # methodology note above; functionally inert either way while
-  # filtering stays off.
-  mac_filter_policy = "deny"
-
-  # Minimum data rates: raw legacy JSON's minrate_ng_enabled/
-  # minrate_ng_data_rate_kbps (true/1000) looked like 2.4GHz had a real
-  # minimum rate set, but the top-level minrate_setting_preference is
-  # "auto", which overrides those per-band fields - confirmed via
-  # dry-run, the provider's own refreshed value is 0 (disabled) for
-  # both bands, not 1000. Same "don't trust your own raw-JSON reading,
-  # trust the dry-run" lesson, one level more subtle than network.tf's.
+  # Live values differing from provider defaults - explicit to match
+  # exactly, same discipline as network.tf's ipv6_ra_valid_lifetime
+  # lesson noted in the original draft.
   minimum_data_rate_2g_kbps = 0
   minimum_data_rate_5g_kbps = 0
 }
 
 import {
   to = unifi_wlan.arda_home
-  # unifi_wlan's docs show no `name=` import format (unlike
-  # unifi_network) - raw legacy _id only.
-  id = "607fbf602d387c04fa8ff624"
+  # Current live _id - this WLAN object was recreated after the
+  # 2026-08-05 destroy, so this is NOT the same id the original
+  # never-merged draft imported against (607fbf602d387c04fa8ff624).
+  id = "6a73a3de7eae7c6ea8d8b462"
 }

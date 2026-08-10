@@ -1,3 +1,13 @@
+# Import blocks removed (2026-08-10): unifi_user has no documented
+# `terraform import` support at all (unlike network/wlan/setting_ips) -
+# confirmed via dry-run, every import ID here failed with "cannot
+# import non-existent remote object", initially misread as 35 stale
+# client records. The real explanation: the provider's `allow_existing`
+# attribute (default true) exists specifically so this resource can
+# adopt an already-connected client by MAC match at apply time, without
+# an import block at all. Dry-run with the import blocks removed shows
+# a clean plan (35 to add, 0 to change, 0 to destroy) and no errors.
+#
 # Scope note (2026-08-04, HISTORY.md #11, corrected 2026-08-05 - see
 # #14 and #16): recently-active clients (last_seen within 30 days) =
 # 39, matches what the UniFi UI actually shows. Of those, 25 already
@@ -339,143 +349,3 @@ resource "unifi_user" "desktop_aee4eif" {
 #   mac 38:a5:c9:e9:91:58, fixed_ip 192.168.2.29 (active reservation,
 #   but last_seen outside the 30-day window - not in the current 39)
 
-import {
-  to = unifi_user.googlehome_lounge
-  id = "6093b3ac954f510349ac2fe0"
-}
-import {
-  to = unifi_user.googlehome_shed
-  id = "641e298a32c35b0378eb6c71"
-}
-import {
-  to = unifi_user.googlehome_clock
-  id = "641e2ab032c35b0378eb6cbf"
-}
-import {
-  to = unifi_user.googlehome_bar
-  id = "641e483677ae6e03709d987a"
-}
-import {
-  to = unifi_user.pinode_01
-  id = "665b108008b72b5443c99d09"
-}
-import {
-  to = unifi_user.k8smaster
-  id = "68c26d0a1da50b72d5255550"
-}
-import {
-  to = unifi_user.fetchbox_family_room
-  id = "607fbfe72d387c04fa8ff636"
-}
-import {
-  to = unifi_user.printer_hp
-  id = "607fbfe72d387c04fa8ff63c"
-}
-import {
-  to = unifi_user.phone_base_station
-  id = "607fc4e0afaf570510a1e6c1"
-}
-import {
-  to = unifi_user.chromecast_pergola
-  id = "60824193afaf570510a226df"
-}
-import {
-  to = unifi_user.fetchbox_pantry
-  id = "60fe5e59bfc2330366790dff"
-}
-import {
-  to = unifi_user.lg_tv_family_room
-  id = "641e298f32c35b0378eb6c72"
-}
-import {
-  to = unifi_user.marinas_ipad
-  id = "64f9820d638c93062ba9e480"
-}
-import {
-  to = unifi_user.marinas_iphone
-  id = "64f9828f638c93062ba9e488"
-}
-import {
-  to = unifi_user.thermomix_2
-  id = "6529b83fdc56ad04323ac38a"
-}
-import {
-  to = unifi_user.gpo_plug_base_pergola_2
-  id = "6557f24a51a2f9043a14b12e"
-}
-import {
-  to = unifi_user.eufy_home_base
-  id = "656114d62b7f9b043fbbef3c"
-}
-import {
-  to = unifi_user.camera_garage
-  id = "659b88d299a92b1115e48169"
-}
-import {
-  to = unifi_user.bretts_iphone
-  id = "67248f327a126434dfc0eaa3"
-}
-import {
-  to = unifi_user.spa_controller_wifi
-  id = "67319f3e7a126434dfc3293e"
-}
-import {
-  to = unifi_user.spa_controller_fixed
-  id = "67410ce1e5ca617617428f16"
-}
-import {
-  to = unifi_user.lg_tv_bedroom
-  id = "674581dbd0081f7bd590798e"
-}
-import {
-  to = unifi_user.bretts_ipad
-  id = "674581ecd0081f7bd5907990"
-}
-import {
-  to = unifi_user.k8smaster_m
-  id = "68d64e4c047a683ca81bbe9d"
-}
-import {
-  to = unifi_user.pinode_m
-  id = "68e96b5720e6db6972e6a6e2"
-}
-import {
-  to = unifi_user.valinor
-  id = "6881e89d2374fb4193c8edcd"
-}
-import {
-  to = unifi_user.macbookair
-  id = "68a28c151da50b72d51e9722"
-}
-import {
-  to = unifi_user.ipad_64f0
-  id = "6966c8c110c8725bc7ff9533"
-}
-import {
-  to = unifi_user.roborock_vacuum_a144
-  id = "69ae3d1b08640f21a3fa40f7"
-}
-import {
-  to = unifi_user.ipad_67a6
-  id = "69c53644ce22c861c8d51581"
-}
-import {
-  to = unifi_user.thermomix_90df0b
-  id = "69c6fe32ce22c861c8d57702"
-}
-import {
-  to = unifi_user.mnab53j7j34
-  id = "6a3c6228b03cb53572f17cb3"
-}
-import {
-  to = unifi_user.bretts_mbp
-  id = "6a472686b03cb53572f3c395"
-}
-import {
-  to = unifi_user.lwip0
-  id = "6a488c1203fdbd43b3ecfcce"
-}
-import {
-  to = unifi_user.desktop_aee4eif
-  id = "6a50a05b03fdbd43b3eeaaad"
-}

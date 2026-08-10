@@ -14,6 +14,17 @@ configMapGenerator:
     files:
       - terraform/versions.tf
       - terraform/variables.tf
-      # Resource files (network.tf, wlan.tf, device.tf, firewall.tf,
-      # port-forward.tf, clients.tf) are added one at a time as each is
-      # inventoried and imported — see README.md's rollout order.
+      - terraform/network.tf
+      - terraform/wlan.tf
+      - terraform/device.tf
+      - terraform/firewall.tf
+      - terraform/port-forward.tf
+      - terraform/security-settings.tf
+      - terraform/clients.tf
+      # All validated via an out-of-band, plan-only dry-run against the
+      # real shared backend before landing here (2026-08-10) - 0 to
+      # destroy across every file. firewall.tf/port-forward.tf declare
+      # no resources (both genuinely empty on this console) but are
+      # included for completeness. NOT yet merged to main - see
+      # HISTORY.md for why a real apply from an unmerged branch is
+      # exactly the mistake that took down the house WiFi once already.
