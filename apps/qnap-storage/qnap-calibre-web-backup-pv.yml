@@ -1,0 +1,40 @@
+# Static NFS PersistentVolume onto a QNAP (valinor-m) share. One PV per
+# QNAP directory - see README.md for the pattern and the prerequisites
+# (FQDN resolution on every node via day0-infra-build's qnap_client role).
+#
+# path is /backup/active_backup/calibre-web, a subdirectory of the
+# /backup export - deliberately not the export root, which still has
+# an old, unverified rushed backup sitting on it from before this
+# project existed (see day2-services project_qnap_backup_design memory).
+#
+# Migrated 2026-08-10 off nfs-client (k8smaster's own local disk) -
+# this one really is just what it says, the periodic config tar
+# backups (calibre-web's own config/db runs in a RAM emptyDir), but
+# still had zero durability against a k8smaster disk failure.
+#
+# root-owned (0:0) on the QNAP side: the config-backup sidecar is a
+# plain busybox container with no securityContext, confirmed live -
+# runs as literal root. /backup is no_root_squash (see
+# day0-infra-build roles/qnap_exports), so this has to actually match.
+#
+# accessModes is ReadWriteOnce - calibre-web is single-replica.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: qnap-calibre-web-backup
+  labels:
+    app.kubernetes.io/part-of: qnap-storage
+    argocd.argoproj.io/managed-by: argocd
+spec:
+  capacity:
+    storage: 2Gi  # informational for NFS; not enforced
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: qnap-static
+  mountOptions:
+    - vers=4
+    - noatime
+  nfs:
+    server: 192.168.1.30
+    path: /backup/active_backup/calibre-web

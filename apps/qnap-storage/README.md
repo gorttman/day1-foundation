@@ -22,6 +22,8 @@ originally caught.
 | qnap-vault | /vault/obsidian | obsidian (rw), RWO not RWX - see obsidian directories note below |
 | qnap-immich | /immich | apps/immich (day2, 2026-08-04) - immich-server (rw), RWO not RWX, root:users 2775 |
 | qnap-paperless | /paperless/media | apps/paperless (day2, 2026-08-08) - paperless-media (rw), RWO not RWX |
+| qnap-pihole | /backup/active_backup/pihole | apps/pihole (day2, 2026-08-10) - pihole-data (rw), RWO not RWX, root:root |
+| qnap-calibre-web-backup | /backup/active_backup/calibre-web | apps/calibre-web (day2, 2026-08-10) - calibre-web-config-backup (rw), RWO not RWX, root:root |
 
 Planned as apps get their config pass: media (jellyfin + sonarr/radarr),
 photos (the general Drive-photos migration, distinct from Immich's own
@@ -397,3 +399,51 @@ ownership here is really just documentation of intent; root can write
 regardless (`no_root_squash`, same as every other export), and there's
 no non-root container UID that needs the group-write bit the way
 inbox-router's UID 1000 did on `/inbox`/`/books`.
+
+## pihole and calibre-web-backup migrated to the QNAP (2026-08-10)
+
+Both were on `nfs-client` (k8smaster's own local disk) - the same
+"wrong home" pattern already fixed for Obsidian, Immich, and Paperless.
+Unlike those, neither of these lives under its own top-level QNAP
+export - both sit under `/backup/active_backup/`, the same staging area
+`postgres-backup` already uses (see day2-services `apps/postgres`
+README), since they're also disaster-recovery-shaped data rather than
+primary application content with its own natural home.
+
+`pihole-data` turned out to be more than its name suggests - not just
+the `gravity-backup.db` safety copy, but pihole's entire persistent
+config (`setupVars.conf`, custom/adlists, `dhcp.leases`, dnsmasq confs).
+Checked before assuming otherwise (`du`/`find` against the live PVC's
+underlying nfs-client directory) rather than taking the "backup" name
+at face value.
+
+Both apps' backup-writing sidecars (`gravity-backup`, `config-backup`)
+are plain `busybox` containers with no `securityContext` - confirmed
+live via `grep` against each deployment, not assumed - so both run as
+literal root. QNAP-side directories (`active_backup/pihole`,
+`active_backup/calibre-web`) chowned `0:0` to match, via
+day0-infra-build's `qnap_backup_dirs` role. This match actually matters
+now: `/backup` is `no_root_squash` (see `qnap_exports`), so a
+mismatched owner genuinely blocks the write - not theoretical, this
+exact class of bug had just bitten `postgres-backup` hours earlier the
+same day when its export's squash mode changed under it.
+
+Existing content copied via `rsync` and verified by file count + size
+match before either PVC was repointed: pihole 19 files/7.7M,
+calibre-web 2 files/884K. Both apps confirmed serving their real
+pre-migration data afterward (pihole's restored config visible via
+`kubectl exec ... ls /etc/pihole`, calibre-web's restored `app.db`/
+`client_secrets.json` visible via `kubectl exec ... ls /config`) - not
+just "the PVC bound successfully."
+
+One operational wrinkle worth recording: pausing an individual app's
+ArgoCD `Application.spec.syncPolicy.automated` didn't hold for
+`pihole`/`calibre-web` the way it did for the earlier Paperless
+migration - `day2-services` (the app-of-apps parent) was actively
+re-asserting each child Application's syncPolicy back from git within
+seconds, fighting the imperative `kubectl scale --replicas=0` needed to
+release the old PVC. Pausing the *parent* Application's own
+`syncPolicy.automated` alongside the two children resolved it. Worth
+checking for this same fight on any future PVC swap under this
+app-of-apps structure, rather than assuming the Paperless migration's
+approach will always hold.

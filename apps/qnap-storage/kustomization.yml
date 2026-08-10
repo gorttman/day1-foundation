@@ -6,3 +6,5 @@ resources:
   - qnap-vault-pv.yml
   - qnap-immich-pv.yml
   - qnap-paperless-pv.yml
+  - qnap-pihole-pv.yml
+  - qnap-calibre-web-backup-pv.yml
