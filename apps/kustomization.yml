@@ -16,4 +16,10 @@ resources:
   - grafana/grafana-app.yml
   - cloudflared/cloudflared-app.yml
   - cloudflare-tf/cloudflare-tf-app.yml
-  - unifi-tf/unifi-tf-app.yml
+  # unifi-tf relocated to day0-infra-build 2026-08-10, deliberately out
+  # of ArgoCD entirely - it manages the live household UDM/gateway/APs,
+  # and ArgoCD's own automated selfHeal is what turned an unrelated
+  # commit into a real terraform destroy against the live WLAN on
+  # 2026-08-05 (see day0-infra-build/unifi-tf/HISTORY.md #5). See
+  # day0-infra-build/unifi-tf-apply.yml - a manually-run playbook now,
+  # never automatic.
