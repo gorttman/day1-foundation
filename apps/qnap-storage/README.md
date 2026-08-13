@@ -22,8 +22,6 @@ originally caught.
 | qnap-vault | /vault/obsidian | obsidian (rw), RWO not RWX - see obsidian directories note below |
 | qnap-immich | /immich | apps/immich (day2, 2026-08-04) - immich-server (rw), RWO not RWX, root:users 2775 |
 | qnap-paperless | /paperless/media | apps/paperless (day2, 2026-08-08) - paperless-media (rw), RWO not RWX |
-| qnap-pihole | /backup/active_backup/pihole | **being retired 2026-08-13, see below** |
-| qnap-calibre-web-backup | /backup/active_backup/calibre-web | **being retired 2026-08-13, see below** |
 | qnap-pihole-live | /pihole | apps/pihole (day2, 2026-08-13) - pihole-data (rw), RWO not RWX, root:root |
 | qnap-calibre-web-live | /calibre-web | apps/calibre-web (day2, 2026-08-13) - calibre-web-config-backup (rw), RWO not RWX, root:root |
 
