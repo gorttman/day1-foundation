@@ -1,0 +1,49 @@
+# Static NFS PersistentVolume onto a QNAP (valinor-m) share. One PV per
+# QNAP directory - see README.md for the pattern and the prerequisites
+# (FQDN resolution on every node via day0-infra-build's qnap_client role).
+#
+# Replaces qnap-pihole (qnap-pihole-pv.yml) - that one points at
+# /backup/active_backup/pihole, which meant pihole's only copy of its
+# data sat inside the one directory tree the QNAP snapshot job
+# deliberately excludes (it can't back up the backup disk into itself -
+# see day0-infra-build roles/qnap_snapshot), so it had zero generational
+# history and zero protection if the backup disk itself failed. This PV
+# points at /pihole instead, a real export on the QNAP's main pool
+# (day0-infra-build variables/play/qnap_main_pool_dirs.yml,
+# variables/play/qnap_nfs_exports.yml's qnap_nfs_new_exports) - the same
+# live/backup separation every other app already has: live data on the
+# main pool, generations on the backup disk via the snapshot job.
+#
+# Named qnap-pihole-live rather than reusing qnap-pihole so both PVs can
+# exist side by side during the copy-verify-cutover window - see
+# README.md's migration section for the sequencing. qnap-pihole and its
+# backing active_backup/pihole directory get retired once this one is
+# confirmed stable.
+#
+# root-owned (0:0) on the QNAP side, same as the old export - pihole's
+# gravity-backup sidecar and the fix-ftl-conf initContainer are both
+# plain busybox containers with no securityContext, confirmed live -
+# they run as literal root. /pihole is no_root_squash, so this has to
+# actually match, not just be convenient.
+#
+# accessModes is ReadWriteOnce - pihole is single-replica.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: qnap-pihole-live
+  labels:
+    app.kubernetes.io/part-of: qnap-storage
+    argocd.argoproj.io/managed-by: argocd
+spec:
+  capacity:
+    storage: 2Gi  # informational for NFS; not enforced
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: qnap-static
+  mountOptions:
+    - vers=4
+    - noatime
+  nfs:
+    server: 192.168.1.30
+    path: /pihole

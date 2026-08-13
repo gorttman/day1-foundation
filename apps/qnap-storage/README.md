@@ -22,12 +22,44 @@ originally caught.
 | qnap-vault | /vault/obsidian | obsidian (rw), RWO not RWX - see obsidian directories note below |
 | qnap-immich | /immich | apps/immich (day2, 2026-08-04) - immich-server (rw), RWO not RWX, root:users 2775 |
 | qnap-paperless | /paperless/media | apps/paperless (day2, 2026-08-08) - paperless-media (rw), RWO not RWX |
-| qnap-pihole | /backup/active_backup/pihole | apps/pihole (day2, 2026-08-10) - pihole-data (rw), RWO not RWX, root:root |
-| qnap-calibre-web-backup | /backup/active_backup/calibre-web | apps/calibre-web (day2, 2026-08-10) - calibre-web-config-backup (rw), RWO not RWX, root:root |
+| qnap-pihole | /backup/active_backup/pihole | **being retired 2026-08-13, see below** |
+| qnap-calibre-web-backup | /backup/active_backup/calibre-web | **being retired 2026-08-13, see below** |
+| qnap-pihole-live | /pihole | apps/pihole (day2, 2026-08-13) - pihole-data (rw), RWO not RWX, root:root |
+| qnap-calibre-web-live | /calibre-web | apps/calibre-web (day2, 2026-08-13) - calibre-web-config-backup (rw), RWO not RWX, root:root |
 
 Planned as apps get their config pass: media (jellyfin + sonarr/radarr),
 photos (the general Drive-photos migration, distinct from Immich's own
 `/immich` library).
+
+## pihole/calibre-web: off the backup disk, onto the main pool (2026-08-13)
+
+qnap-pihole and qnap-calibre-web-backup both pointed at subdirectories
+of `/backup` - the USB backup disk itself, not the QNAP's main storage
+pool every other PV here uses. That meant their only copy of data sat
+inside the one directory tree day0-infra-build's QNAP snapshot job
+deliberately excludes (it can't back up the backup disk into itself),
+so neither had any generational history, and worse, neither had any
+protection if the backup disk itself ever failed - the opposite of what
+the whole backup project exists for.
+
+Fix: new `/pihole` and `/calibre-web` exports created on the main pool
+(day0-infra-build's `qnap_main_pool_dirs` role for the directories,
+`qnap_exports`'s `create_export.yml` for the NFS registration - the
+first time this project created a brand-new export rather than just
+modifying an existing one's squash setting, see that role's own
+comments for why it needed a QNAP Shared Folder in `smb.conf`, not just
+an `nfssetting` entry). Both are now also in `qnap_snapshot_sources`, so
+they get the same 7/4/13 generational history as books/vault/immich/
+paperless/inbox/media.
+
+Sequencing: qnap-pihole-live and qnap-calibre-web-live were created
+alongside the old PVs, not in place of them - data was copied and
+verified from the old `active_backup/` locations before either PVC was
+repointed. Once both apps were confirmed serving real data from the new
+PVs, the old qnap-pihole/qnap-calibre-web-backup PVs and their backing
+`active_backup/pihole` and `active_backup/calibre-web` directories were
+retired - see day0-infra-build's `qnap_backup_directories.yml` history
+if reconstructing the old state is ever needed.
 
 ## Handing a static PV from one app to another
 

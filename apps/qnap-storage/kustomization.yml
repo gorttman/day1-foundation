@@ -8,3 +8,5 @@ resources:
   - qnap-paperless-pv.yml
   - qnap-pihole-pv.yml
   - qnap-calibre-web-backup-pv.yml
+  - qnap-pihole-live-pv.yml
+  - qnap-calibre-web-live-pv.yml
