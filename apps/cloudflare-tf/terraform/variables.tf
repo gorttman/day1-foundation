@@ -96,6 +96,12 @@ variable "unifi_udm_lan_ip" {
   default     = "192.168.2.1"
 }
 
+variable "qnap_lan_ip" {
+  description = "LAN IP of the QNAP (valinor), reachable over the tunnel's private network route once WARP is enrolled - added 2026-08-16 for off-LAN SMB access (iPad/Mac photo editing workflow). On a different subnet (192.168.1.0/27) than k8smaster's wireless IP and the UDM (192.168.2.0/24), but reachable because k8smaster's wired interface (192.168.1.10) sits on the same subnet as the QNAP."
+  type        = string
+  default     = "192.168.1.30"
+}
+
 variable "warp_authorized_emails" {
   description = "Only these emails may enroll a device in Cloudflare WARP for this account. Auth still goes through the onetimepin IdP - this just gates who's allowed to complete enrollment."
   type        = list(string)

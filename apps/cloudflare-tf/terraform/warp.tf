@@ -43,6 +43,19 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_route" "unifi_udm" {
   comment    = "UniFi Dream Machine - private admin console access via WARP"
 }
 
+# Added 2026-08-16: off-LAN SMB access to the QNAP for the iPad/Mac photo
+# editing workflow (Affinity Photo editing files directly on the QNAP
+# share, rather than round-tripping through a separate cloud library).
+# SMB itself was also disabled at the OS level until this same session
+# (see /etc/config/uLinux.conf [Samba] Enable) - this route alone doesn't
+# get you SMB access without that also being on.
+resource "cloudflare_zero_trust_tunnel_cloudflared_route" "qnap" {
+  account_id = var.account_id
+  tunnel_id  = var.cloudflare_tunnel_id
+  network    = "${var.qnap_lan_ip}/32"
+  comment    = "QNAP (valinor) - private SMB access via WARP"
+}
+
 # Pre-existing singleton (one per account, created outside Terraform).
 # The import block below adopts it declaratively: a no-op if it's already
 # in state (the normal case), an automatic adopt-instead-of-create if
@@ -59,6 +72,10 @@ resource "cloudflare_zero_trust_device_default_profile" "this" {
     {
       address     = "${var.unifi_udm_lan_ip}/32"
       description = "UniFi Dream Machine - private admin console access"
+    },
+    {
+      address     = "${var.qnap_lan_ip}/32"
+      description = "QNAP (valinor) - private SMB access"
     },
   ]
 }
