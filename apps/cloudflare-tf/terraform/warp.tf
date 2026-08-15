@@ -19,12 +19,28 @@
 #
 # Once enrolled, SSH itself is unchanged: same key, same `ssh 192.168.2.10`,
 # WARP only provides the network path when off the home LAN.
+#
+# Extended 2026-08-16 to also cover the UniFi Dream Machine's admin console
+# (192.168.2.1) - same off-LAN access gap, same fix, one more /32. Chose
+# extending this existing route over either alternative: a public tunneled
+# hostname would put router admin on the open internet (a meaningfully
+# bigger attack surface than a WARP-only route, even mTLS-gated); a
+# separate second WARP route would work but there's no reason to duplicate
+# the device-profile/enrollment plumbing for what's still just "a couple
+# of trusted LAN IPs reachable off-network."
 
 resource "cloudflare_zero_trust_tunnel_cloudflared_route" "k8smaster" {
   account_id = var.account_id
   tunnel_id  = var.cloudflare_tunnel_id
   network    = "${var.k8smaster_lan_ip}/32"
   comment    = "k8smaster - private SSH access via WARP"
+}
+
+resource "cloudflare_zero_trust_tunnel_cloudflared_route" "unifi_udm" {
+  account_id = var.account_id
+  tunnel_id  = var.cloudflare_tunnel_id
+  network    = "${var.unifi_udm_lan_ip}/32"
+  comment    = "UniFi Dream Machine - private admin console access via WARP"
 }
 
 # Pre-existing singleton (one per account, created outside Terraform).
@@ -35,10 +51,16 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_route" "k8smaster" {
 resource "cloudflare_zero_trust_device_default_profile" "this" {
   account_id = var.account_id
 
-  include = [{
-    address     = "${var.k8smaster_lan_ip}/32"
-    description = "k8smaster - private SSH access"
-  }]
+  include = [
+    {
+      address     = "${var.k8smaster_lan_ip}/32"
+      description = "k8smaster - private SSH access"
+    },
+    {
+      address     = "${var.unifi_udm_lan_ip}/32"
+      description = "UniFi Dream Machine - private admin console access"
+    },
+  ]
 }
 
 import {

@@ -397,6 +397,22 @@ whether a hostname is *actually* that app's own backend before assuming
 it can be removed alongside a sibling applies here too, just in the
 opposite direction.
 
+### 18. WARP route extended to the UniFi Dream Machine (2026-08-16)
+
+Found while auditing pinode-01's network config against k8smaster's:
+there was no off-LAN path to the UniFi console at all - not on the
+public tunnel (never added), and not on the existing WARP route (only
+covered k8smaster's `/32`). Extended `warp.tf`'s existing WARP setup
+with a second route/include entry for `192.168.2.1` (new
+`unifi_udm_lan_ip` variable, defaults to that address) rather than
+either alternative: a public tunneled hostname would put router admin
+on the open internet (meaningfully bigger attack surface than a
+WARP-only route, even with the zone's mTLS WAF rule in front of it);
+a second, separate WARP route/device-profile/enrollment app would work
+but there's no reason to duplicate that plumbing for what's still just
+a couple of trusted LAN IPs. Once enrolled in WARP, `https://192.168.2.1`
+is reachable off-LAN, same pattern as `ssh 192.168.2.10` already was.
+
 ## What's true now
 
 One variable (`tunneled_hostnames` in `variables.tf`) drives four
