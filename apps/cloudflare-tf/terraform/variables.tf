@@ -90,6 +90,12 @@ variable "k8smaster_lan_ip" {
   default     = "192.168.2.10"
 }
 
+variable "unifi_udm_lan_ip" {
+  description = "LAN IP of the UniFi Dream Machine's admin console, reachable over the tunnel's private network route once WARP is enrolled - added 2026-08-16 after finding there was no off-LAN path to it at all (not on the public tunnel, not on the existing WARP route, which only covered k8smaster)."
+  type        = string
+  default     = "192.168.2.1"
+}
+
 variable "warp_authorized_emails" {
   description = "Only these emails may enroll a device in Cloudflare WARP for this account. Auth still goes through the onetimepin IdP - this just gates who's allowed to complete enrollment."
   type        = list(string)

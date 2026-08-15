@@ -368,28 +368,30 @@ whatever public Ingress was added for it in step 2. No sealing involved
 for any of this — the whole hostname/origin map is plaintext in git by
 design.
 
-## WARP client access (SSH to k8smaster)
+## WARP client access (SSH to k8smaster, UniFi console)
 
 `warp.tf` lets `gorttman@i3sec.com.au` and `brett@i3sec.com.au` (only —
-`var.warp_authorized_emails`) SSH to k8smaster (`192.168.2.10`) from
-anywhere, by enrolling a device in Cloudflare WARP. Three resources:
+`var.warp_authorized_emails`) reach two trusted LAN IPs from anywhere,
+by enrolling a device in Cloudflare WARP: k8smaster (`192.168.2.10`,
+SSH) and the UniFi Dream Machine's admin console (`192.168.2.1`,
+HTTPS — added 2026-08-16, HISTORY.md #18). Three resources:
 
-- `cloudflare_zero_trust_tunnel_cloudflared_route` — private network route
-  for `192.168.2.10/32` over the existing tunnel, so the address is
-  reachable through it at all.
+- `cloudflare_zero_trust_tunnel_cloudflared_route` — one per address
+  (`k8smaster` / `unifi_udm`), a private network route over the
+  existing tunnel so each address is reachable through it at all.
 - `cloudflare_zero_trust_device_default_profile` — the account's one
   WARP device policy, switched from its stock split-tunnel mode
   (`exclude` everything private, i.e. `192.168.0.0/16` and friends) to
-  `include` mode listing only `192.168.2.10/32`. **`include` and
+  `include` mode listing both `/32`s. **`include` and
   `exclude` are mutually exclusive on this resource** — the API rejects
-  a request setting both, so this isn't "add one include entry
+  a request setting both, so this isn't "add an include entry
   alongside the existing excludes," it's a full mode switch: with WARP
-  on, only traffic to k8smaster goes through Cloudflare, everything else
-  (normal browsing, etc.) bypasses WARP entirely. That's a deliberate
-  trade for simplicity — carving a single `/32` out of the
-  `192.168.0.0/16` exclude under `exclude` mode instead would need ~16
-  explicit complement CIDRs, and this account has no other Zero Trust
-  use case (no Gateway filtering, no other Access app) that
+  on, only traffic to these two addresses goes through Cloudflare,
+  everything else (normal browsing, etc.) bypasses WARP entirely.
+  That's a deliberate trade for simplicity — carving two `/32`s out of
+  the `192.168.0.0/16` exclude under `exclude` mode instead would need
+  ~16 explicit complement CIDRs, and this account has no other Zero
+  Trust use case (no Gateway filtering, no other Access app) that
   `include`-mode's "everything else bypasses WARP" side effect could
   break. If that ever changes, revisit this trade-off.
 - `cloudflare_zero_trust_access_application` (`type = "warp"`) — gates
@@ -431,6 +433,7 @@ the client certs above — nothing to codify here):
 1. Install the Cloudflare One (WARP) app.
 2. Team domain: `i3sec`.
 3. Log in with an authorized email; complete the OTP.
-4. SSH to `192.168.2.10` exactly as on the LAN — same key, same command.
-   WARP only supplies the network path when off-LAN; it adds no new
-   auth layer of its own.
+4. SSH to `192.168.2.10`, or browse to `https://192.168.2.1`, exactly
+   as on the LAN — same key/credentials, same address. WARP only
+   supplies the network path when off-LAN; it adds no new auth layer
+   of its own.
