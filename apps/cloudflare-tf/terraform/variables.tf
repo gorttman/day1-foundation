@@ -97,9 +97,15 @@ variable "unifi_udm_lan_ip" {
 }
 
 variable "qnap_lan_ip" {
-  description = "LAN IP of the QNAP (valinor), reachable over the tunnel's private network route once WARP is enrolled - added 2026-08-16 for off-LAN SMB access (iPad/Mac photo editing workflow). The QNAP is dual-homed (192.168.1.30 on eth1, 192.168.2.30 on eth0) - deliberately using the 192.168.2.0/24 address here to match the k8smaster and UDM routes' subnet, not 192.168.1.30 (confirmed working too, but a second one-off subnet would be inconsistent for no real benefit - one pattern, not two)."
+  description = "LAN IP of the QNAP (valinor) on eth0, reachable over the tunnel's private network route once WARP is enrolled - added 2026-08-16 for off-LAN SMB access (iPad/Mac photo editing workflow). Matches the k8smaster/UDM routes' 192.168.2.0/24 subnet - see qnap_wired_lan_ip for the other homed address."
   type        = string
   default     = "192.168.2.30"
+}
+
+variable "qnap_wired_lan_ip" {
+  description = "LAN IP of the QNAP (valinor) on eth1 - the other half of its dual-homing (192.168.1.30, same subnet as k8smaster's wired end0). Added 2026-08-16 alongside qnap_lan_ip: SMB worked over this address from the iPad but not yet over 192.168.2.30, so both are routed simultaneously for live A/B testing rather than guessing which one to commit to. Collapse back to one once the working address is confirmed - see warp.tf's header comment."
+  type        = string
+  default     = "192.168.1.30"
 }
 
 variable "warp_authorized_emails" {
