@@ -50,16 +50,25 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_route" "unifi_udm" {
 # (see /etc/config/uLinux.conf [Samba] Enable) - this route alone doesn't
 # get you SMB access without that also being on.
 #
-# Routes the QNAP's 192.168.2.30 (eth0) address, not 192.168.1.30 (eth1) -
-# both were confirmed reachable and working from an enrolled device, but
-# 2.30 matches the subnet this file's other two routes already use.
-# Consistency over a marginal routing-hop difference: one pattern for
-# every route here, not a one-off exception per target.
+# Originally routed only 192.168.2.30 (eth0), to match the subnet this
+# file's other two routes use. That address wouldn't connect from the
+# iPad while 192.168.1.30 (eth1) did, so both are routed simultaneously
+# for now - live A/B testing beats guessing which one is actually the
+# problem. Collapse back to a single qnap route (matching k8smaster/
+# unifi_udm's pattern above) once one address is confirmed working -
+# this dual-route state is deliberately temporary, not the new norm.
 resource "cloudflare_zero_trust_tunnel_cloudflared_route" "qnap" {
   account_id = var.account_id
   tunnel_id  = var.cloudflare_tunnel_id
   network    = "${var.qnap_lan_ip}/32"
-  comment    = "QNAP (valinor) - private SMB access via WARP"
+  comment    = "QNAP (valinor) - private SMB access via WARP (eth0)"
+}
+
+resource "cloudflare_zero_trust_tunnel_cloudflared_route" "qnap_wired" {
+  account_id = var.account_id
+  tunnel_id  = var.cloudflare_tunnel_id
+  network    = "${var.qnap_wired_lan_ip}/32"
+  comment    = "QNAP (valinor) - private SMB access via WARP (eth1, A/B test)"
 }
 
 # Pre-existing singleton (one per account, created outside Terraform).
@@ -81,7 +90,11 @@ resource "cloudflare_zero_trust_device_default_profile" "this" {
     },
     {
       address     = "${var.qnap_lan_ip}/32"
-      description = "QNAP (valinor) - private SMB access"
+      description = "QNAP (valinor) - private SMB access (eth0)"
+    },
+    {
+      address     = "${var.qnap_wired_lan_ip}/32"
+      description = "QNAP (valinor) - private SMB access (eth1, A/B test)"
     },
   ]
 }
