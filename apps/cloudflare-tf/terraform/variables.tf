@@ -97,9 +97,9 @@ variable "unifi_udm_lan_ip" {
 }
 
 variable "qnap_lan_ip" {
-  description = "LAN IP of the QNAP (valinor), reachable over the tunnel's private network route once WARP is enrolled - added 2026-08-16 for off-LAN SMB access (iPad/Mac photo editing workflow). On a different subnet (192.168.1.0/27) than k8smaster's wireless IP and the UDM (192.168.2.0/24), but reachable because k8smaster's wired interface (192.168.1.10) sits on the same subnet as the QNAP."
+  description = "LAN IP of the QNAP (valinor), reachable over the tunnel's private network route once WARP is enrolled - added 2026-08-16 for off-LAN SMB access (iPad/Mac photo editing workflow). The QNAP is dual-homed (192.168.1.30 on eth1, 192.168.2.30 on eth0) - deliberately using the 192.168.2.0/24 address here to match the k8smaster and UDM routes' subnet, not 192.168.1.30 (confirmed working too, but a second one-off subnet would be inconsistent for no real benefit - one pattern, not two)."
   type        = string
-  default     = "192.168.1.30"
+  default     = "192.168.2.30"
 }
 
 variable "warp_authorized_emails" {

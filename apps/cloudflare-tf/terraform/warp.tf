@@ -49,6 +49,12 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_route" "unifi_udm" {
 # SMB itself was also disabled at the OS level until this same session
 # (see /etc/config/uLinux.conf [Samba] Enable) - this route alone doesn't
 # get you SMB access without that also being on.
+#
+# Routes the QNAP's 192.168.2.30 (eth0) address, not 192.168.1.30 (eth1) -
+# both were confirmed reachable and working from an enrolled device, but
+# 2.30 matches the subnet this file's other two routes already use.
+# Consistency over a marginal routing-hop difference: one pattern for
+# every route here, not a one-off exception per target.
 resource "cloudflare_zero_trust_tunnel_cloudflared_route" "qnap" {
   account_id = var.account_id
   tunnel_id  = var.cloudflare_tunnel_id
