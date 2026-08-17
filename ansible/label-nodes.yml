@@ -8,6 +8,18 @@
 # key from every other node, so moving an app's primary to a new Pi is a
 # one-line edit here followed by a re-run. No app manifests change.
 #
+# Known gap, confirmed live 2026-08-17: this only reconciles apps still
+# present in the map below. Deleting an entry outright (rather than
+# repointing its primary) leaves that app's label orphaned on whichever
+# node had it - the "strip" task only loops over
+# `workload_affinity | dict2items`, so a removed key is never even
+# considered for cleanup. Had to strip arr-stack/jellyfin's labels by
+# hand (`kubectl label node pinode-01 workload-affinity/arr-stack-`)
+# after removing them here. If this stops being a rare event, fix by
+# discovering all live `workload-affinity/*` label keys on the cluster
+# first and diffing against this map, rather than only iterating the
+# map's own keys.
+#
 # Run from the repo root on k8smaster. Needs sudo because the k3s
 # kubeconfig is root-readable only and the k8s action plugin reads it on
 # the controller side:
@@ -42,6 +54,29 @@
       paperless:
         primary: pinode-01
       nextcloud:
+        primary: pinode-01
+      # Added 2026-08-17 alongside removing the matching stale hard
+      # nodeSelector:k8smaster pins in day2-services - same resolved
+      # constraint as immich/paperless above (pinode-01's old RAM-tmpfs
+      # image store), see that repo's commit history for the full story
+      # per app.
+      #
+      # jellyfin and arr-stack deliberately NOT here despite having had
+      # the same stale pin: both use local-path PVCs (node-local, not
+      # NFS-backed), so a soft preference is unsafe - if the pod ever
+      # scheduled on the other node it would silently get a fresh empty
+      # volume instead of failing loudly, orphaning real config/library
+      # data. Left hard-pinned to k8smaster (where their existing
+      # local-path PVs actually live) until those PVCs are migrated to
+      # NFS-backed storage - same open item as obsidian's identical
+      # constraint.
+      pihole:
+        primary: pinode-01
+      calibre-web:
+        primary: pinode-01
+      vscode:
+        primary: pinode-01
+      books-pipeline:
         primary: pinode-01
 
   tasks:
