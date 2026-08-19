@@ -108,12 +108,6 @@ variable "qnap_wired_lan_ip" {
   default     = "192.168.1.30"
 }
 
-variable "qnap_eth0_temp_ip" {
-  description = "TEMPORARY - added 2026-08-18. eth0 is DHCP-configured (not static) and the QNAP had an unclean crash/reboot tonight, landing on a new lease (192.168.2.119) instead of its long-standing 192.168.2.30. This route exists purely to get remote access back to the box while the actual cause (2 RAID6 members not detected on the onboard SATA controller - a hardware/cabling issue, not a config one) gets sorted out physically. Remove this route once qnap_lan_ip's address is reachable again, or once eth0 gets a proper DHCP reservation so it stops moving."
-  type        = string
-  default     = "192.168.2.119"
-}
-
 variable "warp_authorized_emails" {
   description = "Only these emails may enroll a device in Cloudflare WARP for this account. Auth still goes through the onetimepin IdP - this just gates who's allowed to complete enrollment."
   type        = list(string)

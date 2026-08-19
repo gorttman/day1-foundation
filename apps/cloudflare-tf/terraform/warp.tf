@@ -71,16 +71,6 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_route" "qnap_wired" {
   comment    = "QNAP (valinor) - private SMB access via WARP (eth1, A/B test)"
 }
 
-# TEMPORARY - see qnap_eth0_temp_ip's description. Remove once eth0 is back
-# on 192.168.2.30 (or gets a DHCP reservation) instead of tonight's
-# incident-driven lease.
-resource "cloudflare_zero_trust_tunnel_cloudflared_route" "qnap_eth0_temp" {
-  account_id = var.account_id
-  tunnel_id  = var.cloudflare_tunnel_id
-  network    = "${var.qnap_eth0_temp_ip}/32"
-  comment    = "QNAP (valinor) - TEMP route to current DHCP lease, 2026-08-18 crash/reboot"
-}
-
 # Pre-existing singleton (one per account, created outside Terraform).
 # The import block below adopts it declaratively: a no-op if it's already
 # in state (the normal case), an automatic adopt-instead-of-create if
@@ -105,10 +95,6 @@ resource "cloudflare_zero_trust_device_default_profile" "this" {
     {
       address     = "${var.qnap_wired_lan_ip}/32"
       description = "QNAP (valinor) - private SMB access (eth1, A/B test)"
-    },
-    {
-      address     = "${var.qnap_eth0_temp_ip}/32"
-      description = "QNAP (valinor) - TEMP route to current DHCP lease, 2026-08-18 crash/reboot"
     },
   ]
 }
