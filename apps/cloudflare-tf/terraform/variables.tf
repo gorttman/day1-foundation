@@ -75,6 +75,18 @@ variable "tunneled_hostnames" {
       origin        = "https://192.168.2.30:443"
       no_tls_verify = true # confirmed 2026-07-15: QNAP (QTS) serves a self-signed cert even after regenerating it with a correct CN/SAN for qnap.i3sec.com.au - cloudflared has no way to verify it against a public CA, so this stays true. Unrelated to the iPad LAN-side cert trust fix from the same date (see dns-conf/pihole/README.md) - that only covers direct browser access, not cloudflared's origin connection.
     }
+    # Added 2026-08-21 for off-LAN phone access to the photo library.
+    # Immich's own ingress uses Traefik, not the shared ingress-nginx-
+    # controller every other app here goes through (confirmed via
+    # `kubectl get ingress -n immich` showing IngressClass "traefik") -
+    # rather than route through a second ingress controller, this points
+    # straight at the immich-server ClusterIP Service, same plain-HTTP
+    # cluster-internal pattern as the default origin, just a different
+    # Service. Gated by the same zone-wide mTLS WAF rule as everything
+    # else - no separate app-level auth layered on.
+    "immich.i3sec.com.au" = {
+      origin = "http://immich-server.immich.svc.cluster.local:2283"
+    }
   }
 }
 
