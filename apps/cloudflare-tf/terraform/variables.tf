@@ -120,6 +120,24 @@ variable "qnap_wired_lan_ip" {
   default     = "192.168.1.30"
 }
 
+variable "traefik_vip_ip" {
+  description = "MetalLB VIP fronting the Traefik ingress controller - the single address every *.i3sec.com.au app is served from on the LAN. Routed over WARP (added 2026-08-21) so off-LAN devices can reach those apps on the internal path instead of the public tunnel. Needed because the Immich mobile app cannot present a client certificate, so the zone-wide mTLS WAF rule returns 403 to it at Cloudflare's edge (upstream feature request immich-app/immich#1611, unimplemented) - the app is only reachable off-LAN via this private route."
+  type        = string
+  default     = "192.168.2.241"
+}
+
+variable "pihole_dns_ip" {
+  description = "Pi-hole's DNS service VIP. Routed over WARP and used as the fallback-domain resolver for i3sec.com.au (added 2026-08-21), so an enrolled device off-LAN resolves app hostnames to their internal addresses (via traefik_vip_ip) rather than the public Cloudflare answer. Without this the name resolves to the edge, bypasses the WARP route entirely, and hits the mTLS 403."
+  type        = string
+  default     = "192.168.2.245"
+}
+
+variable "internal_dns_zone" {
+  description = "DNS suffix handed to pihole_dns_ip via WARP fallback domains, so split-horizon resolution follows an enrolled device off the LAN."
+  type        = string
+  default     = "i3sec.com.au"
+}
+
 variable "warp_authorized_emails" {
   description = "Only these emails may enroll a device in Cloudflare WARP for this account. Auth still goes through the onetimepin IdP - this just gates who's allowed to complete enrollment."
   type        = list(string)
