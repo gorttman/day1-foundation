@@ -113,6 +113,33 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_route" "pihole_dns" {
 resource "cloudflare_zero_trust_device_default_profile" "this" {
   account_id = var.account_id
 
+  # Split-horizon DNS has to follow the device off the LAN, or the private
+  # route above is useless: WARP resolves through Cloudflare by default,
+  # which returns the real public (edge) address for immich.i3sec.com.au.
+  # That address isn't in the include list, so the traffic bypasses WARP
+  # entirely and lands on the mTLS 403 - the exact failure this is meant
+  # to fix. Handing the whole zone to Pi-hole makes an enrolled device
+  # resolve these names to their internal VIPs, same answers it gets at
+  # home.
+  #
+  # The 14 entries after ours are Cloudflare's stock defaults, restated
+  # verbatim. This attribute REPLACES the server-side list rather than
+  # appending to it (confirmed against the live profile before writing
+  # this), so omitting them would silently strip standard special-use
+  # domain handling from every enrolled device.
+  fallback_domains = concat(
+    [{
+      suffix      = var.internal_dns_zone
+      description = "Split-horizon: resolve internal app hostnames via Pi-hole while off-LAN"
+      dns_server  = [var.pihole_dns_ip]
+    }],
+    [for d in [
+      "home.arpa", "intranet", "internal", "private", "localdomain",
+      "domain", "lan", "home", "host", "corp", "local", "localhost",
+      "invalid", "test",
+    ] : { suffix = d }]
+  )
+
   include = [
     {
       address     = "${var.k8smaster_lan_ip}/32"
@@ -143,46 +170,6 @@ resource "cloudflare_zero_trust_device_default_profile" "this" {
 
 import {
   to = cloudflare_zero_trust_device_default_profile.this
-  id = var.account_id
-}
-
-# Split-horizon DNS has to follow the device off the LAN, or the Traefik
-# VIP route above is useless: WARP resolves through Cloudflare by default,
-# which hands back the real public (edge) address for immich.i3sec.com.au.
-# That address isn't in the include list, so the traffic bypasses WARP
-# entirely and lands right back on the mTLS 403 this is meant to avoid.
-# Pointing the whole zone at Pi-hole makes an enrolled device resolve
-# these names to their internal VIPs - the same answers it already gets
-# at home, which is also why nothing about the LAN path changes.
-#
-# This lives in its own resource because `fallback_domains` is read-only
-# on cloudflare_zero_trust_device_default_profile in provider v5 (it
-# errors with "Invalid Configuration for Read-Only Attribute" if set
-# there - confirmed the hard way 2026-08-21).
-#
-# The 14 entries after ours are Cloudflare's stock defaults, restated
-# verbatim. This resource owns the ENTIRE fallback list for the default
-# profile rather than appending to it, so omitting them would silently
-# strip standard special-use domain handling from every enrolled device.
-resource "cloudflare_zero_trust_device_default_profile_local_domain_fallback" "this" {
-  account_id = var.account_id
-
-  domains = concat(
-    [{
-      suffix      = var.internal_dns_zone
-      description = "Split-horizon: resolve internal app hostnames via Pi-hole while off-LAN"
-      dns_server  = [var.pihole_dns_ip]
-    }],
-    [for d in [
-      "home.arpa", "intranet", "internal", "private", "localdomain",
-      "domain", "lan", "home", "host", "corp", "local", "localhost",
-      "invalid", "test",
-    ] : { suffix = d }]
-  )
-}
-
-import {
-  to = cloudflare_zero_trust_device_default_profile_local_domain_fallback.this
   id = var.account_id
 }
 
