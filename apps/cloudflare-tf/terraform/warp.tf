@@ -76,69 +76,8 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_route" "qnap_wired" {
 # in state (the normal case), an automatic adopt-instead-of-create if
 # state is ever empty (a from-scratch rebuild of the Postgres backend) -
 # no separate manual `terraform import` command to remember or re-run.
-# Added 2026-08-21: off-LAN access to the Traefik-served apps themselves
-# (Immich first, but this covers every *.i3sec.com.au app on the VIP).
-#
-# Why this is needed at all, given those hostnames are ALREADY on the
-# public tunnel: the tunnel path is gated by the zone-wide default-deny
-# mTLS WAF rule, and a browser can satisfy that from the iOS keychain but
-# a native app cannot - client-certificate support in the Immich mobile
-# app is an open upstream feature request (immich-app/immich#1611), not a
-# shipped feature. Confirmed live 2026-08-21: an edge request without a
-# client cert returns 403 for immich.i3sec.com.au and books.i3sec.com.au
-# alike. So the app has no working off-LAN path over the tunnel, at all.
-#
-# The alternative considered and rejected was exempting immich from the
-# mTLS rule, which would work immediately with no VPN - but that puts a
-# family photo library on the open internet behind nothing but Immich's
-# own login, while every other host on the zone stays behind mTLS. A
-# private route costs a running WARP client and leaks nothing.
-#
-# Pi-hole is routed alongside it purely so the fallback_domains block
-# below has something to resolve against - see that block's comment.
-resource "cloudflare_zero_trust_tunnel_cloudflared_route" "traefik_vip" {
-  account_id = var.account_id
-  tunnel_id  = var.cloudflare_tunnel_id
-  network    = "${var.traefik_vip_ip}/32"
-  comment    = "Traefik ingress VIP - private access to *.i3sec.com.au apps via WARP"
-}
-
-resource "cloudflare_zero_trust_tunnel_cloudflared_route" "pihole_dns" {
-  account_id = var.account_id
-  tunnel_id  = var.cloudflare_tunnel_id
-  network    = "${var.pihole_dns_ip}/32"
-  comment    = "Pi-hole DNS - split-horizon resolution for WARP-enrolled devices"
-}
-
 resource "cloudflare_zero_trust_device_default_profile" "this" {
   account_id = var.account_id
-
-  # Split-horizon DNS has to follow the device off the LAN, or the private
-  # route above is useless: WARP resolves through Cloudflare by default,
-  # which returns the real public (edge) address for immich.i3sec.com.au.
-  # That address isn't in the include list, so the traffic bypasses WARP
-  # entirely and lands on the mTLS 403 - the exact failure this is meant
-  # to fix. Handing the whole zone to Pi-hole makes an enrolled device
-  # resolve these names to their internal VIPs, same answers it gets at
-  # home.
-  #
-  # The 14 entries after ours are Cloudflare's stock defaults, restated
-  # verbatim. This attribute REPLACES the server-side list rather than
-  # appending to it (confirmed against the live profile before writing
-  # this), so omitting them would silently strip standard special-use
-  # domain handling from every enrolled device.
-  fallback_domains = concat(
-    [{
-      suffix      = var.internal_dns_zone
-      description = "Split-horizon: resolve internal app hostnames via Pi-hole while off-LAN"
-      dns_server  = [var.pihole_dns_ip]
-    }],
-    [for d in [
-      "home.arpa", "intranet", "internal", "private", "localdomain",
-      "domain", "lan", "home", "host", "corp", "local", "localhost",
-      "invalid", "test",
-    ] : { suffix = d }]
-  )
 
   include = [
     {
@@ -156,14 +95,6 @@ resource "cloudflare_zero_trust_device_default_profile" "this" {
     {
       address     = "${var.qnap_wired_lan_ip}/32"
       description = "QNAP (valinor) - private SMB access (eth1, A/B test)"
-    },
-    {
-      address     = "${var.traefik_vip_ip}/32"
-      description = "Traefik ingress VIP - *.i3sec.com.au apps (Immich mobile app can't pass the mTLS edge)"
-    },
-    {
-      address     = "${var.pihole_dns_ip}/32"
-      description = "Pi-hole DNS - split-horizon resolution for the fallback domain above"
     },
   ]
 }
