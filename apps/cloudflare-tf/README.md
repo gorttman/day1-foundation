@@ -158,6 +158,34 @@ should always match.
 | Brett's iPhone      | `9574ac73a0350b86ffa55536332ef41dda0e1b8bc88738fa688c29bb336ab266` |
 | Marina's iPhone     | `fc0c591a682b9881dcada6bb1acf96d2b9909d2049cadbaef1e577983a056992` |
 | Marina's iPad mini  | `45310e8704d0f266e7c7c685571df96c8c27846537074d15497cb8d3740563b5` |
+| Brett's iPhone — Immich app | `bffd991552e40fbfb5dffba4bdf5d8b1de3ccaf338b203af4d39c145e35a30f0` |
+
+**Why the iPhone has two certs.** The device cert above (`9574ac73…`)
+lives in the iOS keychain and is what Safari presents. The Immich *app*
+cannot use it: iOS apps don't automatically get access to keychain
+identities, so Immich implements its own client-certificate import and
+needs the cert **and its private key** supplied as a PFX/P12.
+
+The second cert (`CN=bretts-iphone-immich`, 2026-08-21) exists only
+because the original's private key couldn't be located on k8smaster. All
+of these certs were generated as local keypairs with only the CSR sent to
+Cloudflare for signing, so **the original keys may still exist on
+whichever machine created them** (likely the Mac). If the original
+iPhone key turns up, prefer bundling it with `9574ac73…` into a PFX and
+revoking this second cert — one identity per device is tidier, and that
+fingerprint is already allow-listed.
+
+Issuance flow (same for all of them — key stays local, CSR is signed by
+Cloudflare's managed CA):
+
+```sh
+openssl req -new -newkey rsa:2048 -nodes -keyout dev.key -out dev.csr \
+  -subj "/CN=<device>-<app>"
+# POST {"csr": "<contents>", "validity_days": 3650} to
+#   https://api.cloudflare.com/client/v4/zones/<zone>/client_certificates
+# then bundle for the app:
+openssl pkcs12 -export -inkey dev.key -in dev.crt -out dev.pfx
+```
 
 **TODO:** Brett's Mac cert still needs to be generated and added. Checked
 the cluster for any self-service tooling that might help — found
