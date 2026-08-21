@@ -171,8 +171,10 @@ iOS keychain (Safari) and the Immich app. One identity per device, works
 for every host behind the mTLS rule (the rule is zone-wide and only checks
 fingerprints — a client cert is never scoped to one app or host).
 
-The old `9574ac73…` was revoked once the replacement was confirmed
-working. A brief transition window kept both fingerprints allow-listed.
+The old `9574ac73…` was revoked at Cloudflare and dropped from the
+allow-list on 2026-08-21 once the replacement was confirmed working in
+both Safari and the Immich app. A brief transition window kept both
+fingerprints allow-listed.
 
 Any future native mobile app on any device reuses that device's PFX — no
 new cert needed, since one client cert already authenticates the device to

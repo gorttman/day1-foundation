@@ -471,3 +471,32 @@ with its own login page will probably also hit.
 - **Never run verbose HTTP debugging (`curl -v`) with real
   `Authorization` headers present** — it echoes the header value into
   output that may get logged or persisted.
+
+## 2026-08-21 — known bugs found while adding an mTLS client cert
+
+Two real issues surfaced adding a client cert to the allow-list; both
+still want a proper fix:
+
+1. **Sync-hook race.** `cloudflare-tf-job.yml` is an `argocd.argoproj.io/
+   hook: Sync` job that reads the fingerprint list from the
+   `cloudflare-tf-secrets` Secret. On a sync that CHANGES that secret, the
+   hook can start before the sealed-secrets controller has decrypted the
+   updated SealedSecret into the Secret, so terraform applies the OLD
+   values and the change silently doesn't take effect. Worked around this
+   time by running a manual (non-hook) copy of the job AFTER confirming the
+   live Secret already held the new fingerprints. Proper fix options: an
+   initContainer that waits until the Secret matches expected content, or
+   an ArgoCD sync-wave so the SealedSecret reconciles before the hook runs.
+
+2. **Manual re-run footgun.** The hook Job references the terraform source
+   ConfigMap by its kustomize-hashed name (e.g.
+   `cloudflare-tf-config-mb4bkd8h8t`). A hand-copied
+   `kubectl apply -f cloudflare-tf-job.yml` uses the un-hashed name
+   `cloudflare-tf-config`, which does not exist, so the pod hangs in
+   ContainerCreating on FailedMount. To run the apply by hand, point it at
+   the live hashed ConfigMap name (`kubectl get cm -n infra`).
+
+Separately: **`bretts-mac` client cert (`d948fd9f…`) exists at Cloudflare
+but its fingerprint was never added to the allow-list** — so that Mac is
+blocked off-LAN despite having a valid cert. Half-finished from whenever it
+was generated. Add its fingerprint via the runbook to complete it.
