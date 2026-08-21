@@ -155,28 +155,31 @@ should always match.
 |---------------------|-------------------------------------------------------------------|
 | Brett's iPad        | `4070efa571840e48365bd2d56035c81aa7266935dc85df348d0711f75419ab1c` |
 | Brett's iPad mini   | `489bef308d26147d202334f14b26ba8665caf4fc9e06e18634bf2026c7edacdb` |
-| Brett's iPhone      | `9574ac73a0350b86ffa55536332ef41dda0e1b8bc88738fa688c29bb336ab266` |
+| Brett's iPhone      | `bcad5ce8bd5b206bc959603f0272e8ca49394243a5e81834cb1707e7b2309309` |
 | Marina's iPhone     | `fc0c591a682b9881dcada6bb1acf96d2b9909d2049cadbaef1e577983a056992` |
 | Marina's iPad mini  | `45310e8704d0f266e7c7c685571df96c8c27846537074d15497cb8d3740563b5` |
-| Brett's iPhone — Immich app | `bffd991552e40fbfb5dffba4bdf5d8b1de3ccaf338b203af4d39c145e35a30f0` |
 
-**Why the iPhone has two certs.** The device cert above (`9574ac73…`)
-lives in the iOS keychain and is what Safari presents. The Immich *app*
-cannot use it: iOS apps don't automatically get access to keychain
-identities, so Immich implements its own client-certificate import and
-needs the cert **and its private key** supplied as a PFX/P12.
+**Brett's iPhone cert was reissued 2026-08-21** (`CN=bretts-iphone`,
+fingerprint `bcad5ce8…`), replacing the original `9574ac73…`. Reason: the
+mobile **Immich app** implements its own client-certificate import and
+needs the cert **plus its private key** as a PFX/P12 — it can't use the
+iOS keychain identity that Safari presents. The original iPhone cert's
+`.p12` was in 1Password but its password was lost, so the key couldn't be
+extracted; rather than run two certs on one phone, the cert was reissued
+fresh with the key kept, and the **same** PFX is installed into both the
+iOS keychain (Safari) and the Immich app. One identity per device, works
+for every host behind the mTLS rule (the rule is zone-wide and only checks
+fingerprints — a client cert is never scoped to one app or host).
 
-The second cert (`CN=bretts-iphone-immich`, 2026-08-21) exists only
-because the original's private key couldn't be located on k8smaster. All
-of these certs were generated as local keypairs with only the CSR sent to
-Cloudflare for signing, so **the original keys may still exist on
-whichever machine created them** (likely the Mac). If the original
-iPhone key turns up, prefer bundling it with `9574ac73…` into a PFX and
-revoking this second cert — one identity per device is tidier, and that
-fingerprint is already allow-listed.
+The old `9574ac73…` was revoked once the replacement was confirmed
+working. A brief transition window kept both fingerprints allow-listed.
 
-Issuance flow (same for all of them — key stays local, CSR is signed by
-Cloudflare's managed CA):
+Any future native mobile app on any device reuses that device's PFX — no
+new cert needed, since one client cert already authenticates the device to
+the whole zone.
+
+Issuance flow (key stays local, only the CSR is signed by Cloudflare's
+managed CA — this is how all of them were made):
 
 ```sh
 openssl req -new -newkey rsa:2048 -nodes -keyout dev.key -out dev.csr \
