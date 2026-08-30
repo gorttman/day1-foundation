@@ -1,0 +1,81 @@
+# Longhorn Helm values. Added 2026-08-30 as the replicated-storage layer
+# for the cluster HA work - see day0-infra-build's
+# effervescent-squishing-token plan / memory project_k3s_etcd_conversion.
+#
+# WHY LONGHORN AT ALL: before this, ~23 app volumes lived on k8smaster's
+# own disk, exported over NFS by k8smaster itself (/srv/nfs/syslog-store).
+# That made k8smaster a storage single-point-of-failure regardless of
+# where a pod was scheduled - a pod could move to pinode-01, its data
+# could not. Longhorn replicates each volume across nodes so the data
+# follows the workload. QNAP deliberately stays data-only (media/docs);
+# it is NOT the backend for cluster app state.
+
+persistence:
+  # DELIBERATELY NOT DEFAULT (yet). local-path stays the default
+  # StorageClass until the volume migration is finished and verified -
+  # otherwise anything newly provisioned mid-migration lands on a
+  # half-migrated backend. Flip this to true only once migration is done.
+  defaultClass: false
+  defaultClassReplicaCount: 2
+  reclaimPolicy: Retain
+
+defaultSettings:
+  # 2 nodes today, third arrives ~2026-09-06 -> raise to 3 then. At 2
+  # replicas a node loss keeps data intact but volumes run DEGRADED,
+  # because there is nowhere to rebuild the missing replica until the
+  # node returns. At 3 it self-heals instead.
+  defaultReplicaCount: 2
+
+  # NVMe on both nodes (k8smaster 343G free, pinode-01 426G free), so the
+  # usual "etcd/Longhorn is slow on a Pi's SD card" objection does not
+  # apply here. Default path is fine - it lands on the NVMe root.
+  defaultDataPath: /var/lib/longhorn
+
+  # Keep a replica on the node running the workload where possible.
+  # Reduces read latency over the 1Gb wired link; writes still go to
+  # both replicas synchronously either way.
+  defaultDataLocality: best-effort
+
+  # Do not let Longhorn schedule replicas onto a node that is nearly
+  # full - on a 2-node cluster losing a node to a full disk is a real
+  # outage, not an inconvenience.
+  storageMinimalAvailablePercentage: 15
+
+  # Both nodes are wired on VLAN20; there is no separate storage network
+  # to steer replication onto, so leave the default (all interfaces).
+
+  # Automatic salvage helps a 2-node cluster recover from an unclean
+  # shutdown without hand-holding.
+  autoSalvage: true
+
+  # Deleting a workload should not silently delete its data. Matches the
+  # Retain reclaim policy above and this project's general
+  # "never delete by default" stance.
+  deletingConfirmationFlag: true
+
+# ARM64 (Raspberry Pi 5). Longhorn publishes arm64 images, but keep the
+# footprint modest - k8smaster has 15Gi and pinode-01 7.9Gi total, and
+# this cluster has a real history of memory pressure (see memory
+# project_apps_stopped_for_memory).
+longhornManager:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+longhornDriver:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+# Longhorn's own UI. Exposed via the existing Traefik ingress pattern
+# rather than its own LoadBalancer IP - MetalLB's pools are being
+# reworked separately and a new VIP here would just be another thing to
+# move.
+ingress:
+  enabled: false
+
+# csi.kubeletRootDir deliberately unset: verified live 2026-08-30 that
+# this k3s uses the default /var/lib/kubelet (no
+# /var/lib/rancher/k3s/agent/kubelet), so the chart's default is
+# correct. Older k3s guidance to override this does not apply here.
