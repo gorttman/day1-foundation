@@ -1,4 +1,4 @@
-# Static NFS PersistentVolume onto a QNAP (valinor-m) share. One PV per
+# Static NFS PersistentVolume onto QNAP (single-interface, see qnap_wired_ip). One PV per
 # QNAP directory - see README.md for the pattern and the prerequisites
 # (FQDN resolution on every node via day0-infra-build's qnap_client
 # role; directory chowned 1000:1000).

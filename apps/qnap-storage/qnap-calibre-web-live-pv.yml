@@ -46,5 +46,5 @@ spec:
     - vers=4
     - noatime
   nfs:
-    server: 192.168.1.30
+    server: qnap
     path: /calibre-web

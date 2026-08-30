@@ -26,12 +26,17 @@ spec:
             - name: PROVISIONER_NAME
               value: k8s-sigs.io/nfs-subdir-external-provisioner
             - name: NFS_SERVER
-              value: "192.168.1.10"
+              # 2026-08-30: hostname, not raw IP - resolved via /etc/hosts
+              # on whichever node this pod lands on (same pattern as
+              # roles/qnap_client), not DNS. See day0-infra-build's
+              # effervescent-squishing-token plan / memory
+              # project_vlan20_backend_migration.
+              value: "k8smaster-nfs"
             - name: NFS_PATH
               value: "/srv/nfs/syslog-store"
       volumes:
         - name: nfs-client-root
           nfs:
-            server: "192.168.1.10"
+            server: "k8smaster-nfs"
             path: "/srv/nfs/syslog-store"
 
