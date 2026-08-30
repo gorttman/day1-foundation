@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: longhorn
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: day1-foundation
+  annotations:
+    # After metallb (5) - Longhorn has no dependency on it, but this
+    # keeps storage coming up after the network layer has settled.
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  project: default
+  sources:
+    # Helm chart source. Version pinned deliberately (same discipline as
+    # metallb's 0.16.1) - 1.11.3 is the latest patch of a settled minor
+    # rather than the newest release (1.12.1 at time of writing).
+    - repoURL: https://charts.longhorn.io
+      chart: longhorn
+      targetRevision: 1.11.3
+      helm:
+        valueFiles:
+          - $values/apps/longhorn/longhorn-values.yml
+
+    # Git repo containing the values file
+    - repoURL: https://github.com/gorttman/day1-foundation.git
+      targetRevision: main
+      ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: longhorn-system
+
+  syncPolicy:
+    automated:
+      # prune deliberately FALSE. Longhorn owns real, replicated
+      # application data; an accidental prune here is not a
+      # "resync and move on" event. selfHeal still corrects drift.
+      # Same reasoning as the unifi-tf caution documented in the root
+      # apps/kustomization.yml.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

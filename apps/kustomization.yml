@@ -12,6 +12,7 @@ resources:
   - metallb/metallb-app.yml
   - metallb/metallb-config-app.yml
   - qnap-storage/qnap-storage-app.yml
+  - longhorn/longhorn-app.yml
   - influxdb/influxdb-app.yml
   - grafana/grafana-app.yml
   - cloudflared/cloudflared-app.yml
