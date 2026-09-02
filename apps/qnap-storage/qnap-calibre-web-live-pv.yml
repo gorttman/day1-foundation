@@ -41,6 +41,16 @@ spec:
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
+  # Explicit claimRef added 2026-09-03 while this PV is disabled, so that
+  # re-enabling it with calibre-web is a one-line uncomment and not a
+  # rebinding gamble - same reasoning as qnap-immich/paperless/vault. The
+  # uid the binding controller writes back is covered by
+  # ignoreDifferences in qnap-storage-app.yml.
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    namespace: calibre-web
+    name: calibre-web-config-backup
   storageClassName: qnap-static
   mountOptions:
     - vers=4
