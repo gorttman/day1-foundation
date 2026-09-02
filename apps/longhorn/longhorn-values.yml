@@ -15,7 +15,12 @@ persistence:
   # StorageClass until the volume migration is finished and verified -
   # otherwise anything newly provisioned mid-migration lands on a
   # half-migrated backend. Flip this to true only once migration is done.
-  defaultClass: false
+  # true since 2026-09-03: there are zero local-path claims left in the
+  # cluster, so an unqualified PVC should get a replicated volume that can
+  # follow its pod rather than one pinned to whichever node happened to
+  # schedule it first. That node-pinning is what hard-pinned jellyfin,
+  # pihole, obsidian and arr-stack to k8smaster for months.
+  defaultClass: true
   defaultClassReplicaCount: 2
   reclaimPolicy: Retain
 
