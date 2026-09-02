@@ -88,11 +88,15 @@ metadata:
 spec:
   ipAddressPools:
     - vlan20-pool
-  # k8smaster's wired NIC is end0, pinode-01's is eth0 - both carry VLAN20
-  # untagged since the 2026-08-30 migration.
-  interfaces:
-    - end0
-    - eth0
+  # No `interfaces` list, deliberately. k8smaster's wired NIC is end0 and
+  # pinode-01's is eth0, and MetalLB treats the list as a requirement every
+  # eligible node must satisfy - naming both excluded both nodes, and the
+  # test VIP came back with no allocated node at all (visible in
+  # `kubectl get servicel2status -n metallb-system`, and invisible to curl
+  # from a node, which kube-proxy answers locally whether or not anything is
+  # ever announced on the wire). With no list, each node announces from
+  # whichever of its own interfaces holds an address in the VIP's subnet,
+  # which is exactly end0 and eth0 respectively.
   # No nodeSelectors, deliberately. This is the whole point of the pool:
   # either node may hold and announce these VIPs, so MetalLB can fail them
   # over instead of them dying with one hard-coded node.
