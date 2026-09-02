@@ -3,10 +3,24 @@ kind: Kustomization
 
 resources:
   - infra-namespace/infra-namespace.yml
-  - dhcpd/dhcpd-app.yml
+  # dhcpd disabled 2026-09-03. It only ever declared subnet 192.168.1.0/27, the
+  # pre-VLAN20 backend, and since the 2026-08-30 migration no node has an
+  # interface on it - so isc-dhcp-server exited on every start with
+  # "No subnet declaration for end0 (192.168.20.10) ... Not configured to
+  # listen on any interfaces!", 117 restarts deep. Re-pointing it at
+  # 192.168.20.0/24 is NOT the fix: the UDM already serves DHCP there, and
+  # two DHCP servers on one segment is worse than none. The reservations and
+  # PXE next-server/filename it carried are the UDM's job now; a future
+  # netboot of a new node is the one thing this would need to come back for.
+  # - dhcpd/dhcpd-app.yml
   - pxe-http/pxe-http-app.yml
   # - portainer/portainer-app.yml  # disabled 2026-06-06 — intentional, config preserved in apps/portainer/
-  - nfs-provisioner/nfs-provisioner-app.yml
+  # nfs-provisioner disabled 2026-09-03. Its backing export /srv/nfs/syslog-store
+  # went away when syslog-storage moved to Longhorn, so the pod sat in
+  # ContainerCreating retrying a mount that returns ENOENT. Nothing claims
+  # the nfs-client StorageClass any more - every PVC is longhorn or
+  # qnap-static.
+  # - nfs-provisioner/nfs-provisioner-app.yml
   # syslog-server disabled 2026-09-03: nothing consumes it yet. Its PVC is
   # already on Longhorn, so re-enabling is just uncommenting this line.
   # - syslog-server/syslog-server-app.yml
