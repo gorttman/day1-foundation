@@ -21,6 +21,13 @@ persistence:
   # schedule it first. That node-pinning is what hard-pinned jellyfin,
   # pihole, obsidian and arr-stack to k8smaster for months.
   defaultClass: true
+  #
+  # Two default StorageClasses is not a valid state, so k3s's bundled
+  # local-path had its is-default-class annotation set to false. k3s
+  # re-applies its bundled manifests on every restart, so that alone would
+  # not survive one - /var/lib/rancher/k3s/server/manifests/
+  # local-storage.yaml.skip on k8smaster is what makes it stick. If that
+  # file is ever lost, local-path comes back as a second default.
   defaultClassReplicaCount: 2
   reclaimPolicy: Retain
 
