@@ -19,6 +19,17 @@ persistence:
   defaultClassReplicaCount: 2
   reclaimPolicy: Retain
 
+  # Must be set HERE, not only under defaultSettings. Found 2026-09-02 by
+  # smoke-testing a PVC: the volume came back `dataLocality: disabled`
+  # despite defaultSettings.defaultDataLocality being best-effort.
+  # templates/storageclass.yaml renders the SC parameter from
+  # `.Values.persistence.defaultDataLocality` (chart default "disabled"),
+  # and an explicit StorageClass parameter beats the global setting for
+  # everything provisioned through that class - which is everything.
+  # defaultSettings.defaultDataLocality below is still correct, it just
+  # only governs volumes created without the parameter.
+  defaultDataLocality: best-effort
+
 defaultSettings:
   # 2 nodes today, third arrives ~2026-09-06 -> raise to 3 then. At 2
   # replicas a node loss keeps data intact but volumes run DEGRADED,
@@ -33,7 +44,9 @@ defaultSettings:
 
   # Keep a replica on the node running the workload where possible.
   # Reduces read latency over the 1Gb wired link; writes still go to
-  # both replicas synchronously either way.
+  # both replicas synchronously either way. See the matching
+  # persistence.defaultDataLocality above - that one is what actually
+  # governs volumes from the `longhorn` StorageClass.
   defaultDataLocality: best-effort
 
   # Do not let Longhorn schedule replicas onto a node that is nearly
