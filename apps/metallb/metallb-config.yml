@@ -56,3 +56,43 @@ spec:
   interfaces:
     - end0
     - eth0
+---
+# VLAN20 (Trusted) service pool, added 2026-09-03. This is the pool that
+# actually gives MetalLB working L2 failover:
+#
+#  - wlan-pool cannot. The AP drops MetalLB's gratuitous ARP for claimed IPs
+#    (see wlan-l2adv above), so those VIPs only ever worked through a /32
+#    bound by hand on a node's wlan0 plus proxy_arp - a manual, node-pinned
+#    arrangement that dies with that node and does not survive a reboot.
+#  - wired-pool cannot either: 192.168.1.0/27 is the pre-VLAN20 backend, and
+#    since 2026-08-30 both nodes' wired NICs sit on 192.168.20.0/24 instead.
+#
+# The range is the tail of the Trusted DHCP scope (192.168.20.6-.239, set in
+# day0-infra-build's unifi-tf network.tf). Deliberate: DHCP on Trusted is
+# being turned off, and until it is, the tail is the least likely part of the
+# scope to be handed out. Shrink dhcp_stop to .229 when convenient.
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: vlan20-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 192.168.20.230-192.168.20.239
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: vlan20-l2adv
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - vlan20-pool
+  # k8smaster's wired NIC is end0, pinode-01's is eth0 - both carry VLAN20
+  # untagged since the 2026-08-30 migration.
+  interfaces:
+    - end0
+    - eth0
+  # No nodeSelectors, deliberately. This is the whole point of the pool:
+  # either node may hold and announce these VIPs, so MetalLB can fail them
+  # over instead of them dying with one hard-coded node.
