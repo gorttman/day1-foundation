@@ -45,6 +45,7 @@ variable "tunneled_hostnames" {
   }))
   default = {
     "argocd.i3sec.com.au"        = {}
+    "paperless.i3sec.com.au"     = {}
     "books.i3sec.com.au"         = {}
     "vscode.i3sec.com.au"        = {}
     "homeassistant.i3sec.com.au" = {}
