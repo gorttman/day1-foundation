@@ -79,3 +79,36 @@ ingress:
 # this k3s uses the default /var/lib/kubelet (no
 # /var/lib/rancher/k3s/agent/kubelet), so the chart's default is
 # correct. Older k3s guidance to override this does not apply here.
+
+# ArgoCD install mechanics, added 2026-09-02 - this is what unblocked the
+# first install.
+#
+# The chart's `longhorn-pre-upgrade` Job is annotated `helm.sh/hook:
+# pre-upgrade` (only - there is no pre-install). ArgoCD maps that to a
+# PreSync hook and runs it on EVERY sync, including the very first one,
+# where it is meaningless. That Job sets
+# `serviceAccountName: longhorn-service-account`, which the chart creates
+# during the Sync phase - which cannot start until PreSync passes:
+#
+#   pods "longhorn-pre-upgrade-" is forbidden: error looking up service
+#   account longhorn-system/longhorn-service-account: not found
+#
+# Upstream's own values.yaml documents the switch for exactly this case:
+# "Disable this setting when installing Longhorn using Argo CD or other
+# GitOps solutions." templates/preupgrade-job.yaml renders the whole Job
+# behind `if and .Values.preUpgradeChecker.jobEnabled
+# .Values.preUpgradeChecker.upgradeVersionCheck`, so setting jobEnabled
+# false means ArgoCD has no PreSync hook to deadlock on.
+#
+# Do NOT "fix" this instead by pre-creating the ServiceAccount and RBAC by
+# hand: the CRDs live in templates/crds.yaml (not a crds/ directory), so
+# ArgoCD applies them during Sync, and the hook would still run against a
+# cluster with zero Longhorn CRDs.
+preUpgradeChecker:
+  jobEnabled: false
+  # Left TRUE deliberately. This is the separate check the Longhorn
+  # Manager pods do themselves after starting; only the Job above is the
+  # problem, and upstream recommends keeping this on. Note the chart's
+  # `and` guard means setting this to false would silently disable
+  # jobEnabled too.
+  upgradeVersionCheck: true
