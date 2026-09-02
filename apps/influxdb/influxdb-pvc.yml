@@ -15,5 +15,8 @@ spec:
   resources:
     requests:
       storage: 25Gi  # Changed from 10Gi
-  storageClassName: local-path  # k3s default storage class
+  # Longhorn since 2026-09-02 - replicated so the data follows the pod
+  # instead of pinning it to one node. Migrated with day1-foundation's
+  # migration/pvc_migrate.sh; the old local-path volume was staged and restored.
+  storageClassName: longhorn  # k3s default storage class
 
