@@ -6,7 +6,10 @@ metadata:
 spec:
   accessModes:
     - ReadWriteMany
-  storageClassName: nfs-client
+  # Longhorn since 2026-09-02 - replicated so the data follows the pod
+  # instead of pinning it to one node. Migrated with day1-foundation's
+  # migration/pvc_migrate.sh; the old nfs-client volume was staged and restored.
+  storageClassName: longhorn
   resources:
     requests:
       storage: 10Gi
