@@ -61,18 +61,20 @@
       # image store), see that repo's commit history for the full story
       # per app.
       #
-      # jellyfin and arr-stack deliberately NOT here despite having had
-      # the same stale pin: both use local-path PVCs (node-local, not
-      # NFS-backed), so a soft preference is unsafe - if the pod ever
-      # scheduled on the other node it would silently get a fresh empty
-      # volume instead of failing loudly, orphaning real config/library
-      # data. Left hard-pinned to k8smaster (where their existing
-      # local-path PVs actually live) until those PVCs are migrated to
-      # NFS-backed storage - same open item as obsidian's identical
-      # constraint.
+      # jellyfin and obsidian joined 2026-09-03: the local-path PVCs that
+      # made a soft preference unsafe (a pod landing on the other node
+      # would have silently got a fresh empty volume instead of failing
+      # loudly) are on Longhorn now, so the volume follows the pod.
+      # arr-stack is still absent, but only because the app is disabled -
+      # its PVCs are already on Longhorn, so add it back when it returns.
       pihole:
         primary: pinode-01
-      calibre-web:
+      # calibre-web removed 2026-09-03 with the app itself. Note the known
+      # gap above: this playbook only strips labels for apps still in the
+      # map, so calibre-web's label had to be removed by hand.
+      jellyfin:
+        primary: pinode-01
+      obsidian:
         primary: pinode-01
       vscode:
         primary: pinode-01
