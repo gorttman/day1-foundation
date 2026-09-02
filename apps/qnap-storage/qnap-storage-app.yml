@@ -16,6 +16,16 @@ spec:
     path: apps/qnap-storage
   destination:
     server: https://kubernetes.default.svc
+  # The binding controller writes uid/resourceVersion back into every
+  # claimRef we pre-declare. Without this the app would sit permanently
+  # OutOfSync and selfHeal would keep trying to patch the uid back out
+  # from under a bound PV.
+  ignoreDifferences:
+    - group: ""
+      kind: PersistentVolume
+      jsonPointers:
+        - /spec/claimRef/uid
+        - /spec/claimRef/resourceVersion
   syncPolicy:
     automated:
       prune: true

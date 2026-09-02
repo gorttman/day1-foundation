@@ -34,6 +34,16 @@ spec:
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
+  # Explicit claimRef added 2026-09-03. qnap-paperless and qnap-vault are
+  # both 10Gi RWO on qnap-static, so an unbound pair could cross-bind and
+  # mount one app's export at the other's path. Pre-binding removes the
+  # race entirely. The uid the binding controller writes back is covered by
+  # ignoreDifferences in qnap-storage-app.yml.
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    namespace: paperless
+    name: paperless-media
   storageClassName: qnap-static
   mountOptions:
     - vers=4
