@@ -67,8 +67,12 @@
       # loudly) are on Longhorn now, so the volume follows the pod.
       # arr-stack is still absent, but only because the app is disabled -
       # its PVCs are already on Longhorn, so add it back when it returns.
-      pihole:
-        primary: pinode-01
+      # pihole removed 2026-09-03. With two instances the rule is no longer
+      # "prefer the applications node" but "one resolver per lane, each on the
+      # same node as its own VIP /32", which this map cannot express - both
+      # Deployments carry an explicit lane nodeAffinity instead. Per the known
+      # gap above, the live workload-affinity/pihole label has to be stripped
+      # by hand; this playbook only reconciles keys still listed here.
       # calibre-web removed 2026-09-03 with the app itself. Note the known
       # gap above: this playbook only strips labels for apps still in the
       # map, so calibre-web's label had to be removed by hand.
