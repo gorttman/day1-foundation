@@ -44,31 +44,24 @@ spec:
       - CreateNamespace=true
 
 # ---------------------------------------------------------------------
-# KNOWN BLOCKER, 2026-08-30 - Longhorn is NOT yet deployed.
+# FIRST-INSTALL BLOCKER, 2026-08-30 - RESOLVED 2026-09-02.
 #
-# ArgoCD runs Helm's `pre-upgrade` hook as a PreSync hook even on a first
-# install, where it is meaningless. That hook Job
-# (longhorn-pre-upgrade) needs the `longhorn-service-account`
-# ServiceAccount - which the chart only creates during the *Sync* phase,
-# which cannot start until PreSync succeeds. Deadlock:
+# ArgoCD runs the chart's `pre-upgrade` hook as PreSync even on a first
+# install, where it is meaningless. That Job needs the
+# `longhorn-service-account` ServiceAccount, which the chart only creates
+# during the Sync phase, which cannot start until PreSync passes.
 #
-#   pods "longhorn-pre-upgrade-" is forbidden: error looking up service
-#   account longhorn-system/longhorn-service-account: not found
+# Fixed in longhorn-values.yml with `preUpgradeChecker.jobEnabled: false`,
+# which is upstream's own documented answer for GitOps installs - the Job
+# is then never rendered, so there is no PreSync hook to deadlock on. See
+# the long comment in that file for why the two obvious alternatives
+# (`spec.source.helm.skipHooks`, and hand-creating the SA + RBAC) do not
+# work on this cluster.
 #
-# It retried ~20 times then hit DeadlineExceeded, and ArgoCD re-drove the
-# same failing sync every few seconds. `automated` has been removed from
-# the live Application to stop that loop; re-add it once the install
-# path below is done. (Deleting the stuck Job also needs ArgoCD's own
-# `argocd.argoproj.io/hook-finalizer` cleared first, or the delete hangs.)
-#
-# `spec.source.helm.skipHooks` is NOT available on this ArgoCD (v3.2.0 -
-# verified against the live Application CRD), so that route is out.
-#
-# Recommended fix when picking this back up: perform the FIRST install
-# outside ArgoCD (`helm install` into longhorn-system with these same
-# values), which creates the ServiceAccount and RBAC properly, then
-# re-enable `automated` here and let ArgoCD adopt the existing release.
-# Every subsequent sync has the SA present, so the PreSync hook works as
-# intended. Alternative: pre-create the SA + ClusterRole/Binding by hand
-# before the first sync.
+# `automated` was removed from the LIVE Application on 2026-08-30 to stop
+# it re-driving the failing sync every few seconds. It was never removed
+# from this file, so restoring it is a patch on the live object to match
+# git - not an edit here, and not a sync of the paused day1-foundation
+# parent (which would re-assert `automated` on 13 other deliberately
+# frozen children).
 # ---------------------------------------------------------------------
