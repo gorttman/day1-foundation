@@ -13,7 +13,16 @@ resources:
   # PXE next-server/filename it carried are the UDM's job now; a future
   # netboot of a new node is the one thing this would need to come back for.
   # - dhcpd/dhcpd-app.yml
-  - pxe-http/pxe-http-app.yml
+  # pxe-http disabled 2026-09-03, same reason dhcpd above was: it is the
+  # other half of the same PXE stack (TFTP bootloader hand-off + HTTP
+  # kernel/initrd/rootfs), and netboot has been dropped - nodes boot from
+  # local storage now. Its boot config still points at
+  # "nfsroot=nfs.i3sec.com.au:/nfs/rootfs", a path that is not what the
+  # live NFS server exports any more. With dhcpd already gone nothing can
+  # hand a client the next-server/filename that would reach this anyway,
+  # so it was serving nobody. Manifests kept in apps/pxe-http/ - see that
+  # README before ever re-enabling.
+  # - pxe-http/pxe-http-app.yml
   # - portainer/portainer-app.yml  # disabled 2026-06-06 — intentional, config preserved in apps/portainer/
   # nfs-provisioner disabled 2026-09-03. Its backing export /srv/nfs/syslog-store
   # went away when syslog-storage moved to Longhorn, so the pod sat in
