@@ -72,6 +72,14 @@ variable "tunneled_hostnames" {
     "bazarr.i3sec.com.au"        = {}
     "jdownloader.i3sec.com.au"   = {}
     "lazylibrarian.i3sec.com.au" = {}
+    # whisparr added 2026-09-03. It joined arr-stack on 2026-08-27, after
+    # the 2026-07-21 pass above, and was missed by both halves of the
+    # treatment - no entry here and no nginx "-public" ingress. The effect
+    # was that whisparr.i3sec.com.au resolved only via Pi-hole to the LAN
+    # Traefik VIP, with no public A record at all, so any device not
+    # actually using Pi-hole for DNS (an iPad on iCloud Private Relay,
+    # cellular, a VPN) could not reach it while every sibling app worked.
+    "whisparr.i3sec.com.au"      = {}
     "qnap.i3sec.com.au" = {
       origin        = "https://192.168.2.30:443"
       no_tls_verify = true # confirmed 2026-07-15: QNAP (QTS) serves a self-signed cert even after regenerating it with a correct CN/SAN for qnap.i3sec.com.au - cloudflared has no way to verify it against a public CA, so this stays true. Unrelated to the iPad LAN-side cert trust fix from the same date (see dns-conf/pihole/README.md) - that only covers direct browser access, not cloudflared's origin connection.
