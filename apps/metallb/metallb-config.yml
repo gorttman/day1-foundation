@@ -78,7 +78,13 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-    - 192.168.20.230-192.168.20.239
+    # Extended to .250 on 2026-09-03 to take the Pi-hole VIPs off the WLAN.
+    # .240-.250 deliberately mirrors the old wlan-pool range so the resolver
+    # addresses keep their last octets (.245/.246 DNS, .240 web) and only the
+    # subnet changes - less to relearn, and every doc that says "245 is
+    # Pi-hole" stays true. It also sits outside the Trusted DHCP scope, which
+    # is being shrunk to stop at .229 in the same change.
+    - 192.168.20.230-192.168.20.250
 ---
 apiVersion: metallb.io/v1beta1
 kind: L2Advertisement
