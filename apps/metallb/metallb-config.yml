@@ -1,62 +1,23 @@
-apiVersion: metallb.io/v1beta1
-kind: IPAddressPool
-metadata:
-  name: wlan-pool
-  namespace: metallb-system
-spec:
-  addresses:
-    - 192.168.2.240-192.168.2.250
----
-apiVersion: metallb.io/v1beta1
-kind: L2Advertisement
-metadata:
-  name: wlan-l2adv
-  namespace: metallb-system
-spec:
-  ipAddressPools:
-    - wlan-pool
-  # Both nodes name their WLAN interface wlan0 — scope ARP announcements to
-  # that interface only, not the wired backend network.
-  interfaces:
-    - wlan0
-  # NOT CURRENTLY USABLE for real client reachability - see
-  # day1-foundation apps/metallb/README.md. The WiFi AP silently drops
-  # gratuitous ARP for these IPs from both nodes (confirmed via tcpdump:
-  # requests go out, zero replies) - almost certainly anti-ARP-spoofing
-  # protection, since MetalLB's L2 mode *is* gratuitous ARP announcement
-  # by design. A node's own real/DHCP-registered IP resolves fine over
-  # the same WiFi; only claimed/floating IPs are blocked. This nodeSelector
-  # restriction to pinode-01 was an earlier (incorrect) diagnosis when this
-  # looked like a k8smaster-specific driver issue - tests "succeeding" from
-  # either node were actually kube-proxy answering locally, not real
-  # over-the-air ARP. Left in place but doesn't fix real reachability.
-  nodeSelectors:
-    - matchLabels:
-        kubernetes.io/hostname: pinode-01
----
-apiVersion: metallb.io/v1beta1
-kind: IPAddressPool
-metadata:
-  name: wired-pool
-  namespace: metallb-system
-spec:
-  addresses:
-    - 192.168.1.2-192.168.1.9
----
-apiVersion: metallb.io/v1beta1
-kind: L2Advertisement
-metadata:
-  name: wired-l2adv
-  namespace: metallb-system
-spec:
-  ipAddressPools:
-    - wired-pool
-  # Interface name differs per node: k8smaster's wired NIC is end0,
-  # pinode-01's is eth0.
-  interfaces:
-    - end0
-    - eth0
----
+# WLAN and the pre-VLAN20 wired pool were both removed on 2026-09-03.
+#
+# wlan-pool held the Pi-hole VIPs (.240 web, .245/.246 DNS). It never worked
+# through MetalLB: the AP silently drops gratuitous ARP for claimed IPs, so
+# those VIPs only ever resolved because a /32 was hand-bound on a node's
+# wlan0 with proxy_arp (day0-infra-build's wlan-vips.yml) - node-pinned, and
+# gone after a reboot. Both resolvers now live on vlan20-pool as
+# 192.168.20.245/.246, keeping their last octets. Both nodes have since had
+# wlan0 taken down entirely; the WLAN is no longer part of the topology.
+#
+# Removing it also fixed a real fault, not just tidiness: while k8smaster
+# held 192.168.2.10/24 on wlan0, that directly-connected route beat the wired
+# path for every 192.168.2.x destination. Any VIP served from k8smaster
+# replied to LAN clients over a 24 Mbit/s half-duplex Wi-Fi link, which is
+# what made Jellyfin stall for a minute at a time and recover.
+#
+# wired-pool was 192.168.1.2-9, the pre-VLAN20 backend. No node has had an
+# interface on 192.168.1.0/27 since the 2026-08-30 migration, so it could
+# never allocate. Removed rather than re-pointed - vlan20-pool covers this.
+
 # VLAN20 (Trusted) service pool, added 2026-09-03. This is the pool that
 # actually gives MetalLB working L2 failover:
 #
