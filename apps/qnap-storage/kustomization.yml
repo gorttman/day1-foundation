@@ -2,10 +2,16 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  # qnap-books + qnap-calibre-web-live disabled 2026-09-03 with calibre-web -
-  # both carried a stuck deletionTimestamp from the 2026-08-30 churn.
-  # reclaimPolicy is Retain, so the QNAP data is untouched.
-  # - qnap-books-pv.yml
+  # qnap-books + qnap-calibre-web-live were disabled earlier on 2026-09-03,
+  # when both carried a stuck deletionTimestamp from the 2026-08-30 churn and
+  # could not finish deleting while their PVCs stayed bound - which held
+  # qnap-storage, and so the whole day1-foundation parent, permanently
+  # Progressing. RE-ENABLED later the same day: both PVs have since finished
+  # deleting and no longer exist in the cluster, so the condition that forced
+  # the disable is gone. They recreate fresh against the explicit claimRefs
+  # added while they were disabled. reclaimPolicy is Retain throughout, so the
+  # QNAP data was never at risk.
+  - qnap-books-pv.yml
   - qnap-vault-pv.yml
   - qnap-immich-pv.yml
   - qnap-paperless-pv.yml
@@ -13,4 +19,4 @@ resources:
   # pihole-data-local PVC, the live PV was deleted, and git was the only
   # thing still declaring it.
   # - qnap-pihole-live-pv.yml
-  # - qnap-calibre-web-live-pv.yml
+  - qnap-calibre-web-live-pv.yml
