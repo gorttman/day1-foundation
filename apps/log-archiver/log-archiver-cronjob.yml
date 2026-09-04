@@ -4,15 +4,21 @@ metadata:
   name: log-archiver
   namespace: logging
 spec:
-  # Disabled 2026-07-04 (runs were failing and hanging for 20h+); re-enable
-  # by setting suspend: false once the job itself is fixed
-  suspend: true
+  # Re-enabled 2026-09-04. Disabled 2026-07-04 for failing and hanging
+  # 20h+. All prerequisites re-verified: the secret exists, NAS_IP is
+  # the current 192.168.20.30, and /syslog-archive exists and is
+  # exported. The unbounded hang is fixed by activeDeadlineSeconds
+  # below, so a stuck mount now fails in 30 minutes instead of
+  # blocking until noticed.
+  suspend: false
   schedule: "0 2 * * *"
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid
   jobTemplate:
     spec:
+      activeDeadlineSeconds: 1800
+      backoffLimit: 2
       template:
         spec:
           restartPolicy: OnFailure
