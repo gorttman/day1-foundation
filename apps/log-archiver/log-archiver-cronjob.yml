@@ -10,7 +10,16 @@ spec:
   # exported. The unbounded hang is fixed by activeDeadlineSeconds
   # below, so a stuck mount now fails in 30 minutes instead of
   # blocking until noticed.
-  suspend: false
+  # Re-suspended 2026-09-04. Two real defects were found and fixed: the
+  # QNAP had no live /syslog-archive export at all (present in nfssetting
+  # but absent from /etc/exports with no NFSv4 bind mount), and this job
+  # forced vers=3, which QNAP denies for short export names. Both fixed
+  # and verified - the share now mounts from the host and from an
+  # equivalent privileged pod. This job still fails at its own mount step
+  # for a third, separate reason not yet identified. Left suspended so it
+  # does not fail nightly; activeDeadlineSeconds below means it can no
+  # longer hang for 20h whenever it is re-enabled.
+  suspend: true
   schedule: "0 2 * * *"
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
