@@ -70,7 +70,12 @@ data:
     echo "$(date): Mounting NFS share ${NFS_SERVER}:${NFS_PATH}"
     mkdir -p "${MOUNT_POINT}"
     
-    if ! mount -t nfs -o vers=3,nolock "${NFS_SERVER}:${NFS_PATH}" "${MOUNT_POINT}"; then
+    if ! # vers=4.1, not 3. QNAP resolves short export names like
+              # /syslog-archive only through its NFSv4 pseudo-root
+              # (/share/NFSv=4/...); an NFSv3 client asking for that path
+              # is denied outright. Every host mount in this cluster is
+              # 4.1 for the same reason. Verified live 2026-09-04.
+              mount -t nfs -o vers=4.1 "${NFS_SERVER}:${NFS_PATH}" "${MOUNT_POINT}"; then
       echo "$(date): ERROR - Failed to mount NFS share"
       exit 1
     fi
