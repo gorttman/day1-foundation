@@ -96,6 +96,23 @@ variable "tunneled_hostnames" {
     "immich.i3sec.com.au" = {
       origin = "http://immich-server.immich.svc.cluster.local:2283"
     }
+    # Added 2026-09-08 for off-LAN Jellyfin access. Like immich, jellyfin's
+    # ingress is Traefik-class (jellyfin-ingress.yml, ingressClassName:
+    # traefik), not the shared ingress-nginx-controller - so this points
+    # straight at the jellyfin ClusterIP Service (plain HTTP on 8096),
+    # bypassing the Ingress the same way the immich entry does.
+    #
+    # Off-LAN this sits behind the same zone-wide mTLS WAF rule as every
+    # other host here, which the Jellyfin native apps (Swiftfin, the
+    # Android/TV clients) can't satisfy - they don't do client-cert auth.
+    # That's by design, not a gap: split-horizon DNS already publishes
+    # jellyfin.i3sec.com.au -> 192.168.20.239 (the LAN Traefik VIP) via
+    # Pi-hole and CoreDNS, so on-LAN the native apps hit Traefik directly
+    # and never see Cloudflare or the mTLS gate. Off-LAN is browser-only
+    # on a cert-carrying device, same as everything else.
+    "jellyfin.i3sec.com.au" = {
+      origin = "http://jellyfin.jellyfin.svc.cluster.local:8096"
+    }
   }
 }
 
