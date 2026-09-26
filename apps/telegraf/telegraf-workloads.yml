@@ -1,0 +1,173 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: telegraf-node
+  namespace: monitoring
+  labels:
+    app: telegraf-node
+    app.kubernetes.io/name: telegraf
+    app.kubernetes.io/component: node-agent
+    app.kubernetes.io/part-of: observability
+spec:
+  selector:
+    matchLabels:
+      app: telegraf-node
+  template:
+    metadata:
+      labels:
+        app: telegraf-node
+        app.kubernetes.io/name: telegraf
+        app.kubernetes.io/component: node-agent
+        app.kubernetes.io/part-of: observability
+    spec:
+      serviceAccountName: telegraf
+      enableServiceLinks: false
+      containers:
+        - name: telegraf
+          image: telegraf:1.40.1-alpine
+          imagePullPolicy: IfNotPresent
+          args: ["--config", "/etc/telegraf/node.conf"]
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: HOST_PROC
+              value: /hostfs/proc
+            - name: HOST_SYS
+              value: /hostfs/sys
+            - name: HOST_MOUNT_PREFIX
+              value: /hostfs
+            - name: INFLUX_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: telegraf-influxdb
+                  key: INFLUX_TOKEN
+          resources:
+            requests:
+              memory: "48Mi"
+              cpu: "20m"
+            limits:
+              memory: "160Mi"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/telegraf
+              readOnly: true
+            - name: hostfs
+              mountPath: /hostfs
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: telegraf-config
+        - name: hostfs
+          hostPath:
+            path: /
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telegraf-platform
+  namespace: monitoring
+  labels:
+    app: telegraf-platform
+    app.kubernetes.io/name: telegraf
+    app.kubernetes.io/component: platform-scrape
+    app.kubernetes.io/part-of: observability
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: telegraf-platform
+  template:
+    metadata:
+      labels:
+        app: telegraf-platform
+        app.kubernetes.io/name: telegraf
+        app.kubernetes.io/component: platform-scrape
+        app.kubernetes.io/part-of: observability
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: telegraf
+          image: telegraf:1.40.1-alpine
+          imagePullPolicy: IfNotPresent
+          args: ["--config", "/etc/telegraf/platform.conf"]
+          env:
+            - name: INFLUX_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: telegraf-influxdb
+                  key: INFLUX_TOKEN
+          resources:
+            requests:
+              memory: "48Mi"
+              cpu: "20m"
+            limits:
+              memory: "160Mi"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/telegraf
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: telegraf-config
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telegraf-ai
+  namespace: monitoring
+  labels:
+    app: telegraf-ai
+    app.kubernetes.io/name: telegraf
+    app.kubernetes.io/component: ai-scrape
+    app.kubernetes.io/part-of: observability
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: telegraf-ai
+  template:
+    metadata:
+      labels:
+        app: telegraf-ai
+        app.kubernetes.io/name: telegraf
+        app.kubernetes.io/component: ai-scrape
+        app.kubernetes.io/part-of: observability
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: telegraf
+          image: telegraf:1.40.1-alpine
+          imagePullPolicy: IfNotPresent
+          args: ["--config", "/etc/telegraf/ai.conf"]
+          env:
+            - name: INFLUX_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: telegraf-influxdb
+                  key: INFLUX_TOKEN
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "10m"
+            limits:
+              memory: "96Mi"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/telegraf
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: telegraf-config

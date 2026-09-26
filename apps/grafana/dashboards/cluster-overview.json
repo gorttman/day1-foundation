@@ -1,0 +1,1059 @@
+{
+  "uid": "cluster-overview",
+  "title": "Cluster Overview",
+  "tags": [
+    "platform",
+    "cluster"
+  ],
+  "description": "Nodes, pods, storage, ArgoCD and certificates. Source: Telegraf (bucket telegraf).",
+  "timezone": "Australia/Sydney",
+  "schemaVersion": 41,
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "1m",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "type": "dashboards",
+      "title": "Platform",
+      "tags": [
+        "platform"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "icon": "external link"
+    }
+  ],
+  "panels": [
+    {
+      "type": "row",
+      "title": "Nodes",
+      "collapsed": false,
+      "id": 1,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Nodes reporting",
+      "description": "Nodes that sent a CPU sample in the last 5 minutes. Expected: 2 (k8smaster, pinode-01).",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"cpu\" and r._field == \"usage_idle\")\n  |> group(columns: [\"host\"])\n  |> last()\n  |> group()\n  |> count()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 2
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "id": 2,
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU used %",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\" and r.cpu == \"cpu-total\" and r._field == \"usage_idle\")\n  |> group(columns: [\"host\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> map(fn: (r) => ({r with _value: 100.0 - r._value}))\n  |> keep(columns: [\"_time\", \"_value\", \"host\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 3,
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Memory used %",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mem\" and r._field == \"used_percent\")\n  |> group(columns: [\"host\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"host\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 4,
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Load (1 min)",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"system\" and r._field == \"load1\")\n  |> group(columns: [\"host\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"host\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 5,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "SoC temperature",
+      "description": "Hottest sensor per node.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"temp\" and r._field == \"temp\")\n  |> group(columns: [\"host\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: max, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"host\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 6,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Swap used %",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"swap\" and r._field == \"used_percent\")\n  |> group(columns: [\"host\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"host\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 7,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Root disk used %",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"disk\" and r.path == \"/\" and r._field == \"used_percent\")\n  |> group(columns: [\"host\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"host\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 8,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Network in (bytes/s)",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"net\" and r._field == \"bytes_recv\")\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)\n  |> derivative(unit: 1s, nonNegative: true)\n  |> group(columns: [\"host\", \"interface\"])\n  |> keep(columns: [\"_time\", \"_value\", \"host\", \"interface\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 9,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 23
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Network out (bytes/s)",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"net\" and r._field == \"bytes_sent\")\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)\n  |> derivative(unit: 1s, nonNegative: true)\n  |> group(columns: [\"host\", \"interface\"])\n  |> keep(columns: [\"_time\", \"_value\", \"host\", \"interface\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 10,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 23
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Pods",
+      "collapsed": false,
+      "id": 11,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      },
+      "panels": []
+    },
+    {
+      "type": "bargauge",
+      "title": "Pod memory, top 15 (working set)",
+      "description": "Latest sample per pod, summed over containers.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"kubernetes_pod_container\" and r._field == \"memory_working_set_bytes\")\n  |> group(columns: [\"namespace\", \"pod_name\", \"container_name\"])\n  |> last()\n  |> group(columns: [\"namespace\", \"pod_name\"])\n  |> sum()\n  |> map(fn: (r) => ({r with pod: r.namespace + \"/\" + r.pod_name}))\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)\n  |> limit(n: 15)\n  |> keep(columns: [\"pod\", \"_value\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "namePlacement": "top",
+        "minVizHeight": 16
+      },
+      "id": 12,
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 31
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Pod CPU, top 15 (cores)",
+      "description": "Latest sample per pod, summed over containers.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"kubernetes_pod_container\" and r._field == \"cpu_usage_nanocores\")\n  |> group(columns: [\"namespace\", \"pod_name\", \"container_name\"])\n  |> last()\n  |> group(columns: [\"namespace\", \"pod_name\"])\n  |> sum()\n  |> map(fn: (r) => ({r with pod: r.namespace + \"/\" + r.pod_name, _value: float(v: r._value) / 1000000000.0}))\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)\n  |> limit(n: 15)\n  |> keep(columns: [\"pod\", \"_value\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "namePlacement": "top",
+        "minVizHeight": 16
+      },
+      "id": 13,
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 31
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Storage, GitOps and certificates",
+      "collapsed": false,
+      "id": 14,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "ArgoCD apps not Synced+Healthy",
+      "description": "Counts apps whose latest health is not Healthy or sync is not Synced. Zero rows means all fine and shows No data.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"argocd\" and r._field == \"argocd_app_info\")\n  |> group(columns: [\"name\", \"health_status\", \"sync_status\"])\n  |> last()\n  |> filter(fn: (r) => r.health_status != \"Healthy\" or r.sync_status != \"Synced\")\n  |> group()\n  |> count()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "id": 15,
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 0,
+        "y": 41
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      }
+    },
+    {
+      "type": "table",
+      "title": "ArgoCD apps needing attention",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"argocd\" and r._field == \"argocd_app_info\")\n  |> group(columns: [\"name\", \"health_status\", \"sync_status\"])\n  |> last()\n  |> filter(fn: (r) => r.health_status != \"Healthy\" or r.sync_status != \"Synced\")\n  |> group()\n  |> map(fn: (r) => ({name: r.name, status: r.health_status + \" / \" + r.sync_status}))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "_start": true,
+              "_stop": true,
+              "_measurement": true,
+              "result": true,
+              "table": true
+            }
+          }
+        }
+      ],
+      "id": 16,
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 12,
+        "y": 41
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Longhorn node storage used %",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"longhorn\" and (r._field == \"longhorn_node_storage_usage_bytes\" or r._field == \"longhorn_node_storage_capacity_bytes\"))\n  |> group(columns: [\"node\", \"_field\"])\n  |> last()\n  |> group(columns: [\"node\"])\n  |> pivot(rowKey: [\"node\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> map(fn: (r) => ({node: r.node, _value: 100.0 * r.longhorn_node_storage_usage_bytes / r.longhorn_node_storage_capacity_bytes}))\n  |> group()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 85
+              }
+            ]
+          },
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "namePlacement": "top",
+        "minVizHeight": 16
+      },
+      "id": 17,
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 46
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Longhorn volumes not healthy",
+      "description": "A volume in degraded, faulted or unknown state. Empty means all healthy.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"longhorn\" and r._field == \"longhorn_volume_robustness\" and r.state != \"healthy\")\n  |> group(columns: [\"pvc_namespace\", \"pvc\", \"state\"])\n  |> last()\n  |> filter(fn: (r) => r._value == 1.0)\n  |> group()\n  |> map(fn: (r) => ({volume: r.pvc_namespace + \"/\" + r.pvc, state: r.state}))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "_start": true,
+              "_stop": true,
+              "_measurement": true,
+              "result": true,
+              "table": true
+            }
+          }
+        }
+      ],
+      "id": 18,
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 46
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Certificates: days to expiry (soonest 10)",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"cert-manager\" and r._field == \"certmanager_certificate_expiration_timestamp_seconds\")\n  |> group(columns: [\"namespace\", \"name\"])\n  |> last()\n  |> map(fn: (r) => ({cert: r.namespace + \"/\" + r.name, _value: (r._value - float(v: int(v: now()) / 1000000000)) / 86400.0}))\n  |> group()\n  |> sort(columns: [\"_value\"])\n  |> limit(n: 10)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 14
+              },
+              {
+                "color": "green",
+                "value": 30
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "namePlacement": "top",
+        "minVizHeight": 16
+      },
+      "id": 19,
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 52
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "InfluxDB heap (bytes)",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"influxdb\" and r._field == \"go_memstats_alloc_bytes\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> group()\n  |> keep(columns: [\"_time\", \"_value\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 20,
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 52
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "InfluxDB goroutines",
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"influxdb\" and r._field == \"go_goroutines\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> group()\n  |> keep(columns: [\"_time\", \"_value\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 21,
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 58
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      }
+    }
+  ]
+}

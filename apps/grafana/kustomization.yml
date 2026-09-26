@@ -15,3 +15,20 @@ resources:
   - grafana-deployment.yml
   - grafana-service.yml
   - grafana-ingress.yml
+
+# Platform dashboards (Cluster Overview, AI Platform) live as plain JSON files
+# in dashboards/. Fixed ConfigMap name (no hash suffix): Grafana's file provider
+# rescans the mounted directory every 60s, so no pod restart is needed.
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: grafana-dashboards-platform
+    files:
+      - dashboards/cluster-overview.json
+      - dashboards/ai-platform.json
+    options:
+      labels:
+        app: grafana
+        app.kubernetes.io/name: grafana
+        app.kubernetes.io/component: visualization

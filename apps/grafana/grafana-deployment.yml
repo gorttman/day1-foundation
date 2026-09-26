@@ -98,6 +98,9 @@ spec:
         - name: dashboards
           mountPath: /var/lib/grafana-dashboards/reports
           readOnly: true
+        - name: dashboards-platform
+          mountPath: /var/lib/grafana-dashboards/platform
+          readOnly: true
         resources:
           requests:
             memory: "128Mi"
@@ -188,3 +191,6 @@ spec:
       - name: dashboards
         configMap:
           name: grafana-dashboards
+      - name: dashboards-platform
+        configMap:
+          name: grafana-dashboards-platform

@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: telegraf
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: telegraf
+    app.kubernetes.io/part-of: observability
+  annotations:
+    argocd.argoproj.io/sync-wave: "12"  # after influxdb (10) and grafana (11)
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/gorttman/day1-foundation.git
+    targetRevision: main
+    path: apps/telegraf
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

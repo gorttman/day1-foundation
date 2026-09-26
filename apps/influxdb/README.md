@@ -1,29 +1,47 @@
 # InfluxDB
 
-**Status:** BACKLOG (commented out in apps/kustomization.yml — not yet deployed)
-**Version:** not pinned (image tag not set in manifests — must pin before deploying)
+**Status:** LIVE (ArgoCD app `influxdb`, auto-sync)
+**Version:** `influxdb:2.7-alpine` (v2.7.12). Stays on 2.x: the Grafana datasource uses Flux, which 3.x does not have.
 **Namespace:** monitoring
 **Sync Wave:** 10
-**Tags:** `observability` `storage` `backlog`
+**Tags:** `observability` `storage`
 
 ---
 
 ## What it does
-Time-series database for storing metrics from the cluster and homelab. Intended as the storage backend for an observability stack (Telegraf → InfluxDB → Grafana).
+Time-series database for cluster and homelab metrics. Telegraf writes to it
+(`apps/telegraf/`), Grafana reads from it (`apps/grafana/`).
 
 ## How it works
-StatefulSet with PVC, ingress, and a ConfigMap for initial config. Secret holds credentials. Namespace `monitoring` created via `CreateNamespace=true` in the ArgoCD Application.
+Single-replica StatefulSet pinned to `lane=infrastructure` (k8smaster). 25Gi
+Longhorn PVC `influxdb-data`. The `DOCKER_INFLUXDB_INIT_*` settings in
+`influxdb-configmap.yml` (org `pilab`, user `admin`, first bucket `telegraf`, 90d
+retention) apply on first boot only. Changing them later does nothing.
+Namespace `monitoring` is created by this app; grafana and telegraf reuse it.
 
-## Config & dependencies
-- Secret `influxdb-secret` must exist before deploy (seal with `scripts/seal_secret.sh`)
-- Ingress assumes a working ingress-nginx controller
-- PVC will use the default StorageClass unless overridden
+## Secrets
+SealedSecret `influxdb-auth` (`influxdb-sealed-secret.yml`), keys `admin-password`
+and `admin-token`. Re-seal with the kubeseal flags in
+`day0-infra-build/scripts/seal_secret.sh`.
 
 ## Access
-- Ingress-based (URL depends on ingress config in the manifests)
-- Default admin credentials: stored in sealed secret
+- UI and API: https://influxdb.i3sec.com.au. LAN only (Traefik ingress, Let's
+  Encrypt cert via `letsencrypt-prod`; Pi-hole resolves it to the Traefik VIP).
+  Not in the Cloudflare tunnel list.
+- In cluster: `http://influxdb.monitoring.svc.cluster.local:8086`.
+- Log in as `admin` with the password from `influxdb-auth`.
 
-## Notes
-**Before enabling:** pin the image tag in `influxdb-statefulset.yml` — current manifests have no explicit tag which risks unexpected upgrades.
+## Org and buckets
+Org `pilab`.
+- `telegraf` (90d): cluster and platform metrics from Telegraf.
+- `ai_metrics` (180d): LiteLLM metrics, route-validation and session-memory results
+  (schema in `apps/telegraf/README.md`).
+- `subscriptions`, `icloud_migration`: written by other jobs.
 
-**To enable:** uncomment `- influxdb/influxdb-app.yml` in `apps/kustomization.yml`, ensure the sealed secret is present, and push.
+Only `telegraf` is created by the init config. Create other buckets with the
+`influx` CLI inside the pod, for example
+`influx bucket create -n NAME -o pilab -r 180d`. They live on the PVC, not in git.
+Each writer gets its own token scoped to its bucket.
+
+## Backup
+The PVC is on Longhorn. There is no separate InfluxDB export job yet.

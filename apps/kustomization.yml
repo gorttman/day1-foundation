@@ -40,6 +40,7 @@ resources:
   - longhorn/longhorn-app.yml
   - influxdb/influxdb-app.yml
   - grafana/grafana-app.yml
+  - telegraf/telegraf-app.yml
   - cloudflared/cloudflared-app.yml
   - cloudflare-tf/cloudflare-tf-app.yml
   # unifi-tf relocated to day0-infra-build 2026-08-10, deliberately out

@@ -1,0 +1,119 @@
+# Three Telegraf configs, one per workload. node and platform write to the
+# InfluxDB "telegraf" bucket; ai writes to "ai_metrics" (build plan's AI
+# metrics database, shared with the route-validation and memory jobs):
+#   node.conf     - DaemonSet: host metrics + kubelet pod/node stats
+#   platform.conf - Deployment: Prometheus scrapes of InfluxDB, ArgoCD,
+#                   Longhorn, cert-manager
+#   ai.conf       - Deployment: LiteLLM /metrics scrape. Its target does not
+#                   exist until build-plan Stage 1; scrape errors in this
+#                   pod's log until then are expected and isolated here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: telegraf-config
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: telegraf
+    app.kubernetes.io/part-of: observability
+data:
+  node.conf: |
+    [agent]
+      interval = "30s"
+      flush_interval = "30s"
+      round_interval = true
+      skip_processors_after_aggregators = true
+      omit_hostname = false
+      hostname = "$NODE_NAME"
+
+    [[outputs.influxdb_v2]]
+      urls = ["http://influxdb.monitoring.svc.cluster.local:8086"]
+      token = "$INFLUX_TOKEN"
+      organization = "pilab"
+      bucket = "telegraf"
+
+    [[inputs.cpu]]
+      percpu = false
+      totalcpu = true
+      collect_cpu_time = false
+      report_active = false
+
+    [[inputs.mem]]
+    [[inputs.swap]]
+    [[inputs.system]]
+    [[inputs.temp]]
+
+    [[inputs.disk]]
+      mount_points = ["/"]
+      ignore_fs = ["tmpfs", "devtmpfs", "devfs", "overlay", "aufs", "squashfs"]
+
+    [[inputs.net]]
+      interfaces = ["eth*", "end*", "wlan*"]
+
+    [[inputs.kubernetes]]
+      url = "https://$HOST_IP:10250"
+      bearer_token = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+      insecure_skip_verify = true
+      namepass = ["kubernetes_node", "kubernetes_pod_container"]
+
+  platform.conf: |
+    [agent]
+      interval = "60s"
+      flush_interval = "60s"
+      round_interval = true
+      skip_processors_after_aggregators = true
+      omit_hostname = true
+
+    [[outputs.influxdb_v2]]
+      urls = ["http://influxdb.monitoring.svc.cluster.local:8086"]
+      token = "$INFLUX_TOKEN"
+      organization = "pilab"
+      bucket = "telegraf"
+
+    [[inputs.prometheus]]
+      urls = ["http://influxdb.monitoring.svc.cluster.local:8086/metrics"]
+      metric_version = 2
+      fieldinclude = ["go_goroutines", "go_memstats_alloc_bytes", "process_resident_memory_bytes", "http_api_request_duration_seconds_count", "http_api_request_duration_seconds_sum"]
+      [inputs.prometheus.tags]
+        service = "influxdb"
+
+    [[inputs.prometheus]]
+      urls = ["http://argocd-metrics.argocd.svc.cluster.local:8082/metrics"]
+      metric_version = 2
+      fieldinclude = ["argocd_app_info"]
+      [inputs.prometheus.tags]
+        service = "argocd"
+
+    [[inputs.prometheus]]
+      urls = ["http://longhorn-backend.longhorn-system.svc.cluster.local:9500/metrics"]
+      metric_version = 2
+      fieldinclude = ["longhorn_volume_robustness", "longhorn_volume_actual_size_bytes", "longhorn_volume_capacity_bytes", "longhorn_node_storage_usage_bytes", "longhorn_node_storage_capacity_bytes"]
+      [inputs.prometheus.tags]
+        service = "longhorn"
+
+    [[inputs.prometheus]]
+      urls = ["http://cert-manager.cert-manager.svc.cluster.local:9402/metrics"]
+      metric_version = 2
+      fieldinclude = ["certmanager_certificate_expiration_timestamp_seconds", "certmanager_certificate_ready_status"]
+      [inputs.prometheus.tags]
+        service = "cert-manager"
+
+  ai.conf: |
+    [agent]
+      interval = "30s"
+      flush_interval = "30s"
+      round_interval = true
+      skip_processors_after_aggregators = true
+      omit_hostname = true
+
+    [[outputs.influxdb_v2]]
+      urls = ["http://influxdb.monitoring.svc.cluster.local:8086"]
+      token = "$INFLUX_TOKEN"
+      organization = "pilab"
+      bucket = "ai_metrics"
+
+    [[inputs.prometheus]]
+      urls = ["http://litellm.litellm.svc.cluster.local:4000/metrics"]
+      metric_version = 2
+      fieldinclude = ["litellm_*"]
+      [inputs.prometheus.tags]
+        service = "litellm"

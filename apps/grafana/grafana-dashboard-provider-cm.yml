@@ -19,3 +19,13 @@ data:
         updateIntervalSeconds: 60
         options:
           path: /var/lib/grafana-dashboards/reports
+  platform.yml: |
+    apiVersion: 1
+    providers:
+      - name: platform
+        folder: Platform
+        type: file
+        allowUiUpdates: true
+        updateIntervalSeconds: 60
+        options:
+          path: /var/lib/grafana-dashboards/platform

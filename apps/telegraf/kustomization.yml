@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: monitoring
+
+# Namespace is owned by the influxdb app. telegraf-sealed-secret.yml holds a
+# write-only InfluxDB token for buckets telegraf and ai_metrics.
+resources:
+  - telegraf-sealed-secret.yml
+  - telegraf-rbac.yml
+  - telegraf-config-cm.yml
+  - telegraf-workloads.yml
