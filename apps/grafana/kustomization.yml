@@ -12,6 +12,7 @@ resources:
   - grafana-datasource-cm.yml
   - grafana-dashboard-provider-cm.yml
   - grafana-dashboards-cm.yml
+  - grafana-alerting-cm.yml
   - grafana-deployment.yml
   - grafana-service.yml
   - grafana-ingress.yml
@@ -27,6 +28,19 @@ configMapGenerator:
     files:
       - dashboards/cluster-overview.json
       - dashboards/ai-platform.json
+    options:
+      labels:
+        app: grafana
+        app.kubernetes.io/name: grafana
+        app.kubernetes.io/component: visualization
+  # Same plain-JSON-file pattern as the Platform dashboards above, but
+  # its own ConfigMap/provider/mount rather than added to the Platform
+  # generator - lands in the Reports folder (alongside Subscriptions),
+  # not Platform, since this is a personal project-tracking dashboard,
+  # not cluster/AI-platform telemetry.
+  - name: grafana-dashboards-icloud-migration
+    files:
+      - dashboards/icloud-migration.json
     options:
       labels:
         app: grafana

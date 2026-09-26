@@ -1,0 +1,89 @@
+# File-provisioned alert rules - same "provisioned = safe, UI edits
+# overwritten on next sync" philosophy as grafana-dashboards-cm.yml.
+# Added 2026-09-26 alongside the iCloud Migration dashboard, prompted
+# directly by the Paperless consume queue sitting stuck at the same
+# count for a full week with nobody noticing (see the icloud-migration
+# project history) - this alert would have caught that within ~2-3h
+# instead of a week.
+#
+# No contact point/notification-policy provisioning yet - this only
+# provisions the rule itself, so it shows Alerting/red in the Grafana
+# UI and via the alerting API, but doesn't send email/Slack/etc. Wire
+# a contact point in a follow-up pass if actual notification delivery
+# is wanted.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-alerting
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/component: visualization
+    argocd.argoproj.io/managed-by: argocd
+data:
+  icloud-migration-alerts.yml: |
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: icloud-migration-alerts
+        folder: Reports
+        interval: 5m
+        rules:
+          - uid: icloud-migration-stuck-queue
+            title: "iCloud migration: queue not draining"
+            # Fires per distinct category/destination/status series that
+            # matches the filter, so if more than one category is
+            # "in_progress" at once, each gets its own independent alert
+            # instance rather than one rule silently only watching one.
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 3600
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: >-
+                    from(bucket: "icloud_migration")
+                      |> range(start: -1h)
+                      |> filter(fn: (r) => r._measurement == "migration_status" and r._field == "percent_complete")
+                      |> filter(fn: (r) => r.status == "in_progress")
+                      |> group(columns: ["category"])
+                      |> stddev()
+                      |> map(fn: (r) => ({r with _field: "stddev_1h"}))
+              - refId: C
+                relativeTimeRange:
+                  from: 3600
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: A
+                  conditions:
+                    - evaluator:
+                        type: lt
+                        params: [0.01]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: OK
+            execErrState: Error
+            for: 2h
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.category }} hasn't moved in over 2 hours while marked in_progress"
+              description: >-
+                percent_complete for category={{ $labels.category }} has had
+                zero variation over the trailing hour, continuously for 2+
+                hours, despite its status still being "in_progress". Likely
+                a stalled consumer/process (this is exactly the pattern that
+                let the Paperless consume queue sit stuck for a week
+                unnoticed on 2026-09-18) - check the relevant service.

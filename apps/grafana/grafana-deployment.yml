@@ -101,6 +101,12 @@ spec:
         - name: dashboards-platform
           mountPath: /var/lib/grafana-dashboards/platform
           readOnly: true
+        - name: dashboards-icloud-migration
+          mountPath: /var/lib/grafana-dashboards/icloud-migration
+          readOnly: true
+        - name: alerting
+          mountPath: /etc/grafana/provisioning/alerting
+          readOnly: true
         resources:
           requests:
             memory: "128Mi"
@@ -194,3 +200,9 @@ spec:
       - name: dashboards-platform
         configMap:
           name: grafana-dashboards-platform
+      - name: dashboards-icloud-migration
+        configMap:
+          name: grafana-dashboards-icloud-migration
+      - name: alerting
+        configMap:
+          name: grafana-alerting

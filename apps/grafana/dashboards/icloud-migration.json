@@ -1,0 +1,295 @@
+{
+  "uid": "icloud-migration",
+  "title": "iCloud Migration",
+  "tags": [
+    "reports",
+    "icloud-migration"
+  ],
+  "timezone": "Australia/Sydney",
+  "schemaVersion": 41,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "refresh": "5m",
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Overall % complete",
+      "description": "Sum of migrated_bytes / sum of total_bytes across every category's current state.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "influxdb", "uid": "influxdb-pilab" },
+          "query": "totals = from(bucket: \"icloud_migration\") |> range(start: -30d) |> filter(fn: (r) => r._measurement == \"migration_status\" and (r._field == \"total_bytes\" or r._field == \"migrated_bytes\")) |> group(columns: [\"category\", \"_field\"]) |> last() |> group(columns: [\"_field\"]) |> sum(column: \"_value\") |> map(fn: (r) => ({_row: 1, _field: r._field, _value: r._value})) |> pivot(rowKey: [\"_row\"], columnKey: [\"_field\"], valueColumn: \"_value\")\ntotals |> map(fn: (r) => ({r with _value: r.migrated_bytes / r.total_bytes * 100.0, _field: \"Overall % complete\"}))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "min": 0,
+          "max": 100,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#b3372b", "value": null },
+              { "color": "#a35f00", "value": 50 },
+              { "color": "#1f7a4d", "value": 90 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 5 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-pilab" },
+      "id": 1
+    },
+    {
+      "type": "stat",
+      "title": "Categories fully landed",
+      "description": "Categories currently at 100% of known files/bytes copied to their destination. Doesn't imply checksum-verified.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "influxdb", "uid": "influxdb-pilab" },
+          "query": "from(bucket: \"icloud_migration\") |> range(start: -30d) |> filter(fn: (r) => r._measurement == \"migration_status\" and r._field == \"percent_complete\") |> last() |> filter(fn: (r) => r._value == 100.0) |> count() |> map(fn: (r) => ({r with _field: \"Landed\"}))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": { "mode": "fixed", "fixedColor": "#1f7a4d" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 5 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-pilab" },
+      "id": 2
+    },
+    {
+      "type": "stat",
+      "title": "Categories blocked",
+      "description": "Categories with a known blocker preventing progress (see the table below for what's blocking each).",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "influxdb", "uid": "influxdb-pilab" },
+          "query": "from(bucket: \"icloud_migration\") |> range(start: -30d) |> filter(fn: (r) => r._measurement == \"migration_status\" and r._field == \"percent_complete\") |> last() |> filter(fn: (r) => r.status == \"blocked\") |> count() |> map(fn: (r) => ({r with _field: \"Blocked\"}))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": { "mode": "fixed", "fixedColor": "#a35f00" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 5 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-pilab" },
+      "id": 3
+    },
+    {
+      "type": "stat",
+      "title": "Data remaining",
+      "description": "Total bytes not yet copied to any destination, summed across every category.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "influxdb", "uid": "influxdb-pilab" },
+          "query": "totals = from(bucket: \"icloud_migration\") |> range(start: -30d) |> filter(fn: (r) => r._measurement == \"migration_status\" and (r._field == \"total_bytes\" or r._field == \"migrated_bytes\")) |> group(columns: [\"category\", \"_field\"]) |> last() |> group(columns: [\"_field\"]) |> sum(column: \"_value\") |> map(fn: (r) => ({_row: 1, _field: r._field, _value: r._value})) |> pivot(rowKey: [\"_row\"], columnKey: [\"_field\"], valueColumn: \"_value\")\ntotals |> map(fn: (r) => ({r with _value: r.total_bytes - r.migrated_bytes, _field: \"Remaining\"}))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decbytes",
+          "decimals": 1,
+          "color": { "mode": "fixed", "fixedColor": "#2f5597" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 5 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-pilab" },
+      "id": 4
+    },
+    {
+      "type": "barchart",
+      "title": "Bytes migrated vs total, per category",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "influxdb", "uid": "influxdb-pilab" },
+          "query": "from(bucket: \"icloud_migration\") |> range(start: -30d) |> filter(fn: (r) => r._measurement == \"migration_status\" and (r._field == \"total_bytes\" or r._field == \"migrated_bytes\")) |> last() |> pivot(rowKey: [\"category\"], columnKey: [\"_field\"], valueColumn: \"_value\") |> group() |> keep(columns: [\"category\",\"total_bytes\",\"migrated_bytes\"]) |> rename(columns: {total_bytes: \"Total\", migrated_bytes: \"Migrated\"}) |> sort(columns: [\"Total\"], desc: true)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decbytes",
+          "custom": { "fillOpacity": 85, "lineWidth": 0 }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Total" },
+            "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "#8a8a8a" } } ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Migrated" },
+            "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "#1f7a4d" } } ]
+          }
+        ]
+      },
+      "options": {
+        "stacking": "none",
+        "xTickLabelRotation": -45,
+        "xField": "category",
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "barWidth": 0.7,
+        "groupWidth": 0.7
+      },
+      "gridPos": { "x": 0, "y": 5, "w": 24, "h": 10 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-pilab" },
+      "id": 5
+    },
+    {
+      "type": "table",
+      "title": "Per-category status",
+      "description": "destination \"unassigned\"/\"undecided\" means a decision on where it lands hasn't been made yet. verified=0 doesn't mean wrong, just not checksum-confirmed yet.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "influxdb", "uid": "influxdb-pilab" },
+          "query": "from(bucket: \"icloud_migration\") |> range(start: -30d) |> filter(fn: (r) => r._measurement == \"migration_status\") |> last() |> pivot(rowKey: [\"category\"], columnKey: [\"_field\"], valueColumn: \"_value\") |> group() |> keep(columns: [\"category\",\"destination\",\"status\",\"total_bytes\",\"migrated_bytes\",\"total_files\",\"migrated_files\",\"percent_complete\",\"verified\"]) |> sort(columns: [\"percent_complete\"], desc: true)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" } }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "category" },
+            "properties": [ { "id": "displayName", "value": "Category" }, { "id": "custom.width", "value": 180 } ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "destination" },
+            "properties": [ { "id": "displayName", "value": "Destination" } ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "status" },
+            "properties": [
+              { "id": "displayName", "value": "Status" },
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "basic" } },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "complete":          { "color": "green",  "text": "Complete" },
+                      "landed_unverified": { "color": "blue",   "text": "Landed (unverified)" },
+                      "in_progress":       { "color": "yellow", "text": "In progress" },
+                      "blocked":           { "color": "red",    "text": "Blocked" },
+                      "not_started":       { "color": "#5b6b66","text": "Not started" },
+                      "undecided":         { "color": "#5b6b66","text": "Undecided" }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "percent_complete" },
+            "properties": [
+              { "id": "displayName", "value": "% Complete" },
+              { "id": "unit", "value": "percent" },
+              { "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "gradient" } },
+              { "id": "min", "value": 0 },
+              { "id": "max", "value": 100 },
+              { "id": "custom.width", "value": 160 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "total_bytes" },
+            "properties": [ { "id": "displayName", "value": "Total size" }, { "id": "unit", "value": "decbytes" } ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "migrated_bytes" },
+            "properties": [ { "id": "displayName", "value": "Migrated size" }, { "id": "unit", "value": "decbytes" } ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "total_files" },
+            "properties": [ { "id": "displayName", "value": "Files" } ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "migrated_files" },
+            "properties": [ { "id": "displayName", "value": "Files landed" } ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "verified" },
+            "properties": [
+              { "id": "displayName", "value": "Verified" },
+              {
+                "id": "mappings",
+                "value": [
+                  { "type": "value", "options": { "1": { "color": "green", "text": "Yes" }, "0": { "color": "#5b6b66", "text": "No" } } }
+                ]
+              },
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "basic" } }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [ { "displayName": "% Complete", "desc": false } ]
+      },
+      "gridPos": { "x": 0, "y": 15, "w": 24, "h": 10 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-pilab" },
+      "id": 6
+    }
+  ],
+  "links": [
+    {
+      "title": "iCloud Migration report",
+      "url": "https://reports.i3sec.com.au/icloud-migration/",
+      "type": "link",
+      "targetBlank": true,
+      "icon": "external link"
+    },
+    {
+      "title": "All reports",
+      "url": "https://reports.i3sec.com.au/",
+      "type": "link",
+      "targetBlank": true,
+      "icon": "external link"
+    }
+  ]
+}

@@ -29,3 +29,13 @@ data:
         updateIntervalSeconds: 60
         options:
           path: /var/lib/grafana-dashboards/platform
+  icloud-migration.yml: |
+    apiVersion: 1
+    providers:
+      - name: icloud-migration
+        folder: Reports
+        type: file
+        allowUiUpdates: true
+        updateIntervalSeconds: 60
+        options:
+          path: /var/lib/grafana-dashboards/icloud-migration
