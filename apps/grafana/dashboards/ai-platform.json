@@ -12,7 +12,7 @@
   "graphTooltip": 1,
   "refresh": "1m",
   "time": {
-    "from": "now-6h",
+    "from": "now-3h",
     "to": "now"
   },
   "templating": {
@@ -327,11 +327,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": [],
           "fields": "",
-          "values": false
+          "values": true
         },
         "orientation": "horizontal",
         "displayMode": "gradient",
@@ -393,11 +391,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": [],
           "fields": "",
-          "values": false
+          "values": true
         },
         "orientation": "horizontal",
         "displayMode": "gradient",
@@ -1163,11 +1159,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": [],
           "fields": "",
-          "values": false
+          "values": true
         },
         "orientation": "horizontal",
         "displayMode": "gradient",

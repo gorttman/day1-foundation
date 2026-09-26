@@ -12,7 +12,7 @@
   "graphTooltip": 1,
   "refresh": "1m",
   "time": {
-    "from": "now-6h",
+    "from": "now-3h",
     "to": "now"
   },
   "templating": {
@@ -556,11 +556,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": [],
           "fields": "",
-          "values": false
+          "values": true
         },
         "orientation": "horizontal",
         "displayMode": "gradient",
@@ -614,11 +612,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": [],
           "fields": "",
-          "values": false
+          "values": true
         },
         "orientation": "horizontal",
         "displayMode": "gradient",
@@ -701,7 +697,7 @@
       },
       "id": 15,
       "gridPos": {
-        "h": 5,
+        "h": 8,
         "w": 12,
         "x": 0,
         "y": 41
@@ -757,7 +753,7 @@
       ],
       "id": 16,
       "gridPos": {
-        "h": 5,
+        "h": 8,
         "w": 12,
         "x": 12,
         "y": 41
@@ -810,11 +806,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": [],
           "fields": "",
-          "values": false
+          "values": true
         },
         "orientation": "horizontal",
         "displayMode": "gradient",
@@ -827,7 +821,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 46
+        "y": 49
       },
       "datasource": {
         "type": "influxdb",
@@ -883,7 +877,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 46
+        "y": 49
       },
       "datasource": {
         "type": "influxdb",
@@ -906,7 +900,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "d",
+          "unit": "suffix: days",
           "color": {
             "mode": "thresholds"
           },
@@ -932,11 +926,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": [],
           "fields": "",
-          "values": false
+          "values": true
         },
         "orientation": "horizontal",
         "displayMode": "gradient",
@@ -949,7 +941,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 52
+        "y": 55
       },
       "datasource": {
         "type": "influxdb",
@@ -998,7 +990,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 52
+        "y": 55
       },
       "datasource": {
         "type": "influxdb",
@@ -1048,7 +1040,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 58
+        "y": 61
       },
       "datasource": {
         "type": "influxdb",
