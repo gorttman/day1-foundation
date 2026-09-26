@@ -38,9 +38,13 @@ Each Longhorn manager pod reports only its own node's storage and the volumes it
 manages, so scraping the `longhorn-backend` Service saw one node at a time (Telegraf
 keeps one connection open, so it stuck to a single manager). `telegraf-platform`
 now discovers the manager pods by label (`app=longhorn-manager`, namespace
-`longhorn-system`) and scrapes each one. That needs the `telegraf-pod-discovery` Role
-(get/list/watch pods in `longhorn-system` only) bound to the `telegraf` ServiceAccount,
-which the Deployment now runs as.
+`longhorn-system`) and scrapes each one. That needs the `telegraf-pod-discovery`
+ClusterRole (get/list/watch pods) bound to the `telegraf` ServiceAccount, which the
+Deployment now runs as. It must be cluster-scoped: Telegraf's pod watcher lists pods
+cluster-wide and filters by namespace itself, so a namespaced Role gets 403. (The
+kustomization's `namespace: monitoring` would also have moved a Role out of
+`longhorn-system`.) The agent already had `nodes/proxy`, which can read every pod on a
+node, so this adds little exposure.
 
 ## Contracts for later build-plan stages
 These are settings other stages must honour. They are written here so no stage
