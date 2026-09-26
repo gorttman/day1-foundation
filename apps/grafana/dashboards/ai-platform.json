@@ -1126,9 +1126,13 @@
       "panels": []
     },
     {
-      "type": "bargauge",
+      "type": "table",
       "title": "AI platform pod memory",
       "description": "Namespaces litellm, open-webui, mcp*, ai-*. Empty until those exist.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      },
       "targets": [
         {
           "refId": "A",
@@ -1136,50 +1140,85 @@
             "type": "influxdb",
             "uid": "influxdb-pilab"
           },
-          "query": "from(bucket: \"telegraf\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"kubernetes_pod_container\" and r._field == \"memory_working_set_bytes\" and r.namespace =~ /^(litellm|open-webui|mcp.*|ai-.*)$/)\n  |> group(columns: [\"namespace\", \"pod_name\", \"container_name\"])\n  |> last()\n  |> group(columns: [\"namespace\", \"pod_name\"])\n  |> sum()\n  |> map(fn: (r) => ({r with pod: r.namespace + \"/\" + r.pod_name}))\n  |> group()\n  |> keep(columns: [\"pod\", \"_value\"])"
+          "query": "import \"regexp\"\n\nfrom(bucket: \"telegraf\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"kubernetes_pod_container\" and r._field == \"memory_working_set_bytes\" and r.namespace =~ /^(litellm|open-webui|mcp.*|ai-.*)$/)\n  |> group(columns: [\"namespace\", \"pod_name\", \"container_name\"])\n  |> last()\n  |> group(columns: [\"namespace\", \"pod_name\"])\n  |> sum()\n  |> map(fn: (r) => ({pod: r.namespace + \"/\" + regexp.replaceAllString(r: /-[a-f0-9]{16,}$/, v: regexp.replaceAllString(r: /-[a-z0-9]{8,10}-[a-z0-9]{5}$/, v: r.pod_name, t: \"\"), t: \"\"), memory: r._value}))\n  |> group()\n  |> sort(columns: [\"memory\"], desc: true)"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "bytes",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "memory"
+            },
+            "properties": [
               {
-                "color": "green",
-                "value": null
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 150
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
               }
             ]
           }
-        },
-        "overrides": []
+        ]
       },
       "options": {
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "",
-          "values": true
-        },
-        "orientation": "horizontal",
-        "displayMode": "gradient",
-        "showUnfilled": true,
-        "namePlacement": "top",
-        "minVizHeight": 16
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "memory",
+            "desc": true
+          }
+        ]
       },
       "id": 24,
       "gridPos": {
-        "h": 7,
+        "h": 8,
         "w": 24,
         "x": 0,
         "y": 74
       },
-      "datasource": {
-        "type": "influxdb",
-        "uid": "influxdb-pilab"
-      }
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "pod": 0,
+              "memory": 1
+            }
+          }
+        }
+      ]
     }
   ]
 }

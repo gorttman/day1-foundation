@@ -543,9 +543,13 @@
       "panels": []
     },
     {
-      "type": "bargauge",
+      "type": "table",
       "title": "Pod memory, top 15 (working set)",
-      "description": "Latest sample per pod, summed over containers.",
+      "description": "Latest sample per pod, summed over its containers. Deployment pod names are shortened (ReplicaSet hash removed).",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      },
       "targets": [
         {
           "refId": "A",
@@ -553,55 +557,94 @@
             "type": "influxdb",
             "uid": "influxdb-pilab"
           },
-          "query": "from(bucket: \"telegraf\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"kubernetes_pod_container\" and r._field == \"memory_working_set_bytes\")\n  |> group(columns: [\"namespace\", \"pod_name\", \"container_name\"])\n  |> last()\n  |> group(columns: [\"namespace\", \"pod_name\"])\n  |> sum()\n  |> map(fn: (r) => ({r with pod: r.namespace + \"/\" + r.pod_name}))\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)\n  |> limit(n: 15)\n  |> keep(columns: [\"pod\", \"_value\"])"
+          "query": "import \"regexp\"\n\nfrom(bucket: \"telegraf\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"kubernetes_pod_container\" and r._field == \"memory_working_set_bytes\")\n  |> group(columns: [\"namespace\", \"pod_name\", \"container_name\"])\n  |> last()\n  |> group(columns: [\"namespace\", \"pod_name\"])\n  |> sum()\n  |> map(fn: (r) => ({pod: r.namespace + \"/\" + regexp.replaceAllString(r: /-[a-f0-9]{16,}$/, v: regexp.replaceAllString(r: /-[a-z0-9]{8,10}-[a-z0-9]{5}$/, v: r.pod_name, t: \"\"), t: \"\"), memory: r._value}))\n  |> group()\n  |> sort(columns: [\"memory\"], desc: true)\n  |> limit(n: 15)"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "bytes",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "memory"
+            },
+            "properties": [
               {
-                "color": "green",
-                "value": null
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 150
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
               }
             ]
           }
-        },
-        "overrides": []
+        ]
       },
       "options": {
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "",
-          "values": true
-        },
-        "orientation": "horizontal",
-        "displayMode": "gradient",
-        "showUnfilled": true,
-        "namePlacement": "top",
-        "minVizHeight": 16
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "memory",
+            "desc": true
+          }
+        ]
       },
       "id": 12,
       "gridPos": {
-        "h": 9,
+        "h": 16,
         "w": 12,
         "x": 0,
         "y": 31
       },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "pod": 0,
+              "memory": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Pod CPU, top 15 (cores)",
+      "description": "Latest sample per pod, summed over its containers. 1.0 = one full core.",
       "datasource": {
         "type": "influxdb",
         "uid": "influxdb-pilab"
-      }
-    },
-    {
-      "type": "bargauge",
-      "title": "Pod CPU, top 15 (cores)",
-      "description": "Latest sample per pod, summed over containers.",
+      },
       "targets": [
         {
           "refId": "A",
@@ -609,50 +652,89 @@
             "type": "influxdb",
             "uid": "influxdb-pilab"
           },
-          "query": "from(bucket: \"telegraf\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"kubernetes_pod_container\" and r._field == \"cpu_usage_nanocores\")\n  |> group(columns: [\"namespace\", \"pod_name\", \"container_name\"])\n  |> last()\n  |> group(columns: [\"namespace\", \"pod_name\"])\n  |> sum()\n  |> map(fn: (r) => ({r with pod: r.namespace + \"/\" + r.pod_name, _value: float(v: r._value) / 1000000000.0}))\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)\n  |> limit(n: 15)\n  |> keep(columns: [\"pod\", \"_value\"])"
+          "query": "import \"regexp\"\n\nfrom(bucket: \"telegraf\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"kubernetes_pod_container\" and r._field == \"cpu_usage_nanocores\")\n  |> group(columns: [\"namespace\", \"pod_name\", \"container_name\"])\n  |> last()\n  |> group(columns: [\"namespace\", \"pod_name\"])\n  |> sum()\n  |> map(fn: (r) => ({pod: r.namespace + \"/\" + regexp.replaceAllString(r: /-[a-f0-9]{16,}$/, v: regexp.replaceAllString(r: /-[a-z0-9]{8,10}-[a-z0-9]{5}$/, v: r.pod_name, t: \"\"), t: \"\"), cores: float(v: r._value) / 1000000000.0}))\n  |> group()\n  |> sort(columns: [\"cores\"], desc: true)\n  |> limit(n: 15)"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cores"
+            },
+            "properties": [
               {
-                "color": "green",
-                "value": null
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              },
+              {
+                "id": "custom.width",
+                "value": 150
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
               }
             ]
           }
-        },
-        "overrides": []
+        ]
       },
       "options": {
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "",
-          "values": true
-        },
-        "orientation": "horizontal",
-        "displayMode": "gradient",
-        "showUnfilled": true,
-        "namePlacement": "top",
-        "minVizHeight": 16
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "cores",
+            "desc": true
+          }
+        ]
       },
       "id": 13,
       "gridPos": {
-        "h": 9,
+        "h": 16,
         "w": 12,
         "x": 12,
         "y": 31
       },
-      "datasource": {
-        "type": "influxdb",
-        "uid": "influxdb-pilab"
-      }
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "pod": 0,
+              "cores": 1
+            }
+          }
+        }
+      ]
     },
     {
       "type": "row",
@@ -663,7 +745,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 40
+        "y": 47
       },
       "panels": []
     },
@@ -720,7 +802,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 41
+        "y": 48
       },
       "datasource": {
         "type": "influxdb",
@@ -776,7 +858,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 41
+        "y": 48
       },
       "datasource": {
         "type": "influxdb",
@@ -841,7 +923,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 49
+        "y": 56
       },
       "datasource": {
         "type": "influxdb",
@@ -851,7 +933,7 @@
     {
       "type": "table",
       "title": "Longhorn volumes not healthy",
-      "description": "A volume in degraded, faulted or unknown state. Empty means all healthy.",
+      "description": "A volume in degraded or faulted state. Detached volumes report robustness 'unknown' by design and are not listed. Empty means all healthy.",
       "targets": [
         {
           "refId": "A",
@@ -859,7 +941,7 @@
             "type": "influxdb",
             "uid": "influxdb-pilab"
           },
-          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"longhorn\" and r._field == \"longhorn_volume_robustness\" and r.state != \"healthy\")\n  |> group(columns: [\"pvc_namespace\", \"pvc\", \"state\"])\n  |> last()\n  |> filter(fn: (r) => r._value == 1.0)\n  |> group()\n  |> map(fn: (r) => ({volume: r.pvc_namespace + \"/\" + r.pvc, state: r.state}))"
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"longhorn\" and r._field == \"longhorn_volume_robustness\" and r.state != \"healthy\" and r.state != \"unknown\")\n  |> group(columns: [\"pvc_namespace\", \"pvc\", \"state\"])\n  |> last()\n  |> filter(fn: (r) => r._value == 1.0)\n  |> group()\n  |> map(fn: (r) => ({volume: r.pvc_namespace + \"/\" + r.pvc, state: r.state}))"
         }
       ],
       "fieldConfig": {
@@ -897,7 +979,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 49
+        "y": 56
       },
       "datasource": {
         "type": "influxdb",
@@ -961,7 +1043,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 55
+        "y": 62
       },
       "datasource": {
         "type": "influxdb",
@@ -1010,7 +1092,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 55
+        "y": 62
       },
       "datasource": {
         "type": "influxdb",
@@ -1060,7 +1142,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 61
+        "y": 68
       },
       "datasource": {
         "type": "influxdb",
