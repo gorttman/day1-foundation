@@ -751,8 +751,19 @@
     },
     {
       "type": "stat",
-      "title": "ArgoCD apps not Synced+Healthy",
-      "description": "Counts apps whose latest health is not Healthy or sync is not Synced. Zero rows means all fine and shows No data.",
+      "title": "ArgoCD apps good",
+      "description": "Apps that are both Healthy and Synced, out of all ArgoCD apps. Full green only when every one is good; light green at 90% or more, yellow at 70%, orange at 40%, red below that. Uses each app's latest state, so a state change never counts an app twice.",
+      "id": 15,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      },
       "targets": [
         {
           "refId": "A",
@@ -760,12 +771,13 @@
             "type": "influxdb",
             "uid": "influxdb-pilab"
           },
-          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"argocd\" and r._field == \"argocd_app_info\")\n  |> group(columns: [\"name\", \"health_status\", \"sync_status\"])\n  |> last()\n  |> filter(fn: (r) => r.health_status != \"Healthy\" or r.sync_status != \"Synced\")\n  |> group()\n  |> count()"
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"argocd\" and r._field == \"argocd_app_info\")\n  |> group(columns: [\"name\"])\n  |> top(n: 1, columns: [\"_time\"])\n  |> map(fn: (r) => ({name: r.name, good: if r.health_status == \"Healthy\" and r.sync_status == \"Synced\" then 1 else 0}))\n  |> group()\n  |> reduce(identity: {good: 0, total: 0}, fn: (r, accumulator) => ({good: accumulator.good + r.good, total: accumulator.total + 1}))\n  |> map(fn: (r) => ({_time: now(), status: string(v: r.good) + \" of \" + string(v: r.total) + \" apps good\", _value: 100.0 * float(v: r.good) / float(v: r.total)}))\n  |> group(columns: [\"status\"])"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "percent",
+          "decimals": 0,
           "color": {
             "mode": "thresholds"
           },
@@ -773,12 +785,24 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "red",
                 "value": null
               },
               {
                 "color": "orange",
-                "value": 1
+                "value": 40
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "light-green",
+                "value": 90
+              },
+              {
+                "color": "green",
+                "value": 100
               }
             ]
           }
@@ -795,18 +819,10 @@
         },
         "colorMode": "background",
         "graphMode": "none",
-        "textMode": "auto"
-      },
-      "id": 15,
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 48
-      },
-      "datasource": {
-        "type": "influxdb",
-        "uid": "influxdb-pilab"
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
       }
     },
     {
@@ -820,7 +836,7 @@
             "type": "influxdb",
             "uid": "influxdb-pilab"
           },
-          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"argocd\" and r._field == \"argocd_app_info\")\n  |> group(columns: [\"name\", \"health_status\", \"sync_status\"])\n  |> last()\n  |> filter(fn: (r) => r.health_status != \"Healthy\" or r.sync_status != \"Synced\")\n  |> group()\n  |> map(fn: (r) => ({name: r.name, status: r.health_status + \" / \" + r.sync_status}))"
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"argocd\" and r._field == \"argocd_app_info\")\n  |> group(columns: [\"name\"])\n  |> top(n: 1, columns: [\"_time\"])\n  |> filter(fn: (r) => r.health_status != \"Healthy\" or r.sync_status != \"Synced\")\n  |> group()\n  |> map(fn: (r) => ({name: r.name, status: r.health_status + \" / \" + r.sync_status}))"
         }
       ],
       "fieldConfig": {
@@ -855,7 +871,7 @@
       ],
       "id": 16,
       "gridPos": {
-        "h": 8,
+        "h": 7,
         "w": 12,
         "x": 12,
         "y": 48
@@ -866,9 +882,10 @@
       }
     },
     {
-      "type": "table",
-      "title": "Longhorn node storage used %",
-      "description": "Share of each Longhorn node's disk in use. Orange over 70%, red over 85%.",
+      "type": "stat",
+      "title": "Longhorn volumes healthy",
+      "description": "Attached Longhorn volumes that are healthy, out of all attached volumes. Detached volumes report robustness 'unknown' by design and are not counted. Full green only when every one is good; light green at 90% or more, yellow at 70%, orange at 40%, red below that.",
+      "id": 22,
       "datasource": {
         "type": "influxdb",
         "uid": "influxdb-pilab"
@@ -880,117 +897,70 @@
             "type": "influxdb",
             "uid": "influxdb-pilab"
           },
-          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"longhorn\" and (r._field == \"longhorn_node_storage_usage_bytes\" or r._field == \"longhorn_node_storage_capacity_bytes\"))\n  |> group(columns: [\"node\", \"_field\"])\n  |> last()\n  |> group(columns: [\"node\"])\n  |> pivot(rowKey: [\"node\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> map(fn: (r) => ({node: r.node, used: 100.0 * r.longhorn_node_storage_usage_bytes / r.longhorn_node_storage_capacity_bytes}))\n  |> group()"
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"longhorn\" and r._field == \"longhorn_volume_robustness\")\n  |> group(columns: [\"volume\", \"state\"])\n  |> last()\n  |> filter(fn: (r) => r._value == 1.0 and r.state != \"unknown\")\n  |> map(fn: (r) => ({volume: r.volume, good: if r.state == \"healthy\" then 1 else 0}))\n  |> group()\n  |> reduce(identity: {good: 0, total: 0}, fn: (r, accumulator) => ({good: accumulator.good + r.good, total: accumulator.total + 1}))\n  |> map(fn: (r) => ({_time: now(), status: string(v: r.good) + \" of \" + string(v: r.total) + \" volumes healthy\", _value: 100.0 * float(v: r.good) / float(v: r.total)}))\n  |> group(columns: [\"status\"])"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "custom": {
-            "align": "left",
-            "cellOptions": {
-              "type": "auto",
-              "wrapText": true
-            }
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "used"
-            },
-            "properties": [
+          "unit": "percent",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
               {
-                "id": "unit",
-                "value": "percent"
+                "color": "red",
+                "value": null
               },
               {
-                "id": "min",
-                "value": 0
+                "color": "orange",
+                "value": 40
               },
               {
-                "id": "max",
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "light-green",
+                "value": 90
+              },
+              {
+                "color": "green",
                 "value": 100
-              },
-              {
-                "id": "decimals",
-                "value": 1
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "thresholds"
-                }
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green",
-                      "value": null
-                    },
-                    {
-                      "color": "orange",
-                      "value": 70
-                    },
-                    {
-                      "color": "red",
-                      "value": 85
-                    }
-                  ]
-                }
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "gauge",
-                  "mode": "basic",
-                  "valueDisplayMode": "text"
-                }
-              },
-              {
-                "id": "custom.width",
-                "value": 150
               }
             ]
           }
-        ]
+        },
+        "overrides": []
       },
       "options": {
-        "showHeader": true,
-        "cellHeight": "sm",
-        "sortBy": [
-          {
-            "displayName": "used",
-            "desc": true
-          }
-        ]
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
       },
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "indexByName": {
-              "node": 0,
-              "used": 1
-            }
-          }
-        }
-      ],
-      "id": 17,
       "gridPos": {
-        "h": 6,
+        "h": 7,
         "w": 12,
         "x": 0,
-        "y": 56
+        "y": 55
       }
     },
     {
       "type": "table",
-      "title": "Longhorn volumes not healthy",
-      "description": "A volume in degraded or faulted state. Detached volumes report robustness 'unknown' by design and are not listed. Empty means all healthy.",
+      "title": "Longhorn volumes needing attention",
+      "description": "Attached volumes in degraded or faulted state, with the reason. Empty means every attached volume is healthy.",
       "targets": [
         {
           "refId": "A",
@@ -998,7 +968,7 @@
             "type": "influxdb",
             "uid": "influxdb-pilab"
           },
-          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"longhorn\" and r._field == \"longhorn_volume_robustness\" and r.state != \"healthy\" and r.state != \"unknown\")\n  |> group(columns: [\"pvc_namespace\", \"pvc\", \"state\"])\n  |> last()\n  |> filter(fn: (r) => r._value == 1.0)\n  |> group()\n  |> map(fn: (r) => ({volume: r.pvc_namespace + \"/\" + r.pvc, state: r.state}))"
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"longhorn\" and r._field == \"longhorn_volume_robustness\")\n  |> group(columns: [\"pvc_namespace\", \"pvc\", \"volume\", \"state\"])\n  |> last()\n  |> filter(fn: (r) => r._value == 1.0 and r.state != \"unknown\" and r.state != \"healthy\")\n  |> group()\n  |> map(fn: (r) => ({volume: r.pvc_namespace + \"/\" + r.pvc, state: r.state}))"
         }
       ],
       "fieldConfig": {
@@ -1033,10 +1003,10 @@
       ],
       "id": 18,
       "gridPos": {
-        "h": 6,
+        "h": 7,
         "w": 12,
         "x": 12,
-        "y": 56
+        "y": 55
       },
       "datasource": {
         "type": "influxdb",
@@ -1166,6 +1136,128 @@
       }
     },
     {
+      "type": "table",
+      "title": "Longhorn node storage used %",
+      "description": "Share of each Longhorn node's disk in use. Orange over 70%, red over 85%.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"longhorn\" and (r._field == \"longhorn_node_storage_usage_bytes\" or r._field == \"longhorn_node_storage_capacity_bytes\"))\n  |> group(columns: [\"node\", \"_field\"])\n  |> last()\n  |> group(columns: [\"node\"])\n  |> pivot(rowKey: [\"node\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> map(fn: (r) => ({node: r.node, used: 100.0 * r.longhorn_node_storage_usage_bytes / r.longhorn_node_storage_capacity_bytes}))\n  |> group()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "used"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 70
+                    },
+                    {
+                      "color": "red",
+                      "value": 85
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "used",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "node": 0,
+              "used": 1
+            }
+          }
+        }
+      ],
+      "id": 17,
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 62
+      }
+    },
+    {
       "type": "timeseries",
       "title": "InfluxDB heap (bytes)",
       "description": "",
@@ -1207,7 +1299,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 62
+        "y": 68
       },
       "datasource": {
         "type": "influxdb",
