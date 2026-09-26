@@ -128,6 +128,12 @@ variable "tunneled_hostnames" {
     "movie-status.i3sec.com.au" = {
       origin = "http://movie-status.arr-stack.svc.cluster.local:80"
     }
+    # Added 2026-09-27 for the AI platform build (build plan Stage 0 spike, Stage 4
+    # daily-driver): Open WebUI, off-LAN, behind the same zone-wide mTLS gate.
+    # Traefik-class app like grafana/immich, so the origin is its ClusterIP Service.
+    "open-webui.i3sec.com.au" = {
+      origin = "http://open-webui.open-webui.svc.cluster.local:80"
+    }
   }
 }
 
