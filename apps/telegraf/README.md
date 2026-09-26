@@ -25,6 +25,14 @@ write access to buckets `telegraf` and `ai_metrics` only. To rotate: create a ne
 token with `influx auth create`, re-seal (see `day0-infra-build/scripts/seal_secret.sh`
 for the kubeseal flags), commit.
 
+## RBAC note
+`telegraf-kubelet-stats` grants `get` on `nodes/stats`, `nodes/metrics` and
+`nodes/proxy`. The kubelet maps its `/pods` endpoint to `nodes/proxy`, and the
+Telegraf `kubernetes` input calls `/pods` first: without it the input fails with
+403 and emits no pod metrics at all. `nodes/proxy` is broader than stats-only
+(it can reach other kubelet endpoints); accepted here because the agent is a
+trusted image on a single-user cluster.
+
 ## Contracts for later build-plan stages
 These are settings other stages must honour. They are written here so no stage
 depends on remembering them.
