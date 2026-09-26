@@ -750,12 +750,12 @@
       "panels": []
     },
     {
-      "type": "stat",
+      "type": "gauge",
       "title": "ArgoCD apps good",
-      "description": "Apps that are both Healthy and Synced, out of all ArgoCD apps. Full green only when every one is good; light green at 90% or more, yellow at 70%, orange at 40%, red below that. Uses each app's latest state, so a state change never counts an app twice.",
+      "description": "Apps that are both Healthy and Synced, out of all ArgoCD apps. Full green only when every one is good; light green at 90% or more, yellow at 70%, orange at 40%, red below that. Uses each app's latest state, so a state change never counts an app twice. The arc starts 8 points below zero so that 0% still shows as a red sliver; the number is always exact.",
       "id": 15,
       "gridPos": {
-        "h": 7,
+        "h": 8,
         "w": 12,
         "x": 0,
         "y": 48
@@ -805,7 +805,9 @@
                 "value": 100
               }
             ]
-          }
+          },
+          "min": -8,
+          "max": 100
         },
         "overrides": []
       },
@@ -817,12 +819,106 @@
           "fields": "",
           "values": false
         },
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "justifyMode": "center",
+        "showThresholdMarkers": false,
+        "showThresholdLabels": false,
         "orientation": "auto",
-        "wideLayout": true
+        "minVizHeight": 120,
+        "minVizWidth": 120,
+        "sizing": "auto",
+        "effects": {
+          "gradient": false,
+          "barGlow": false,
+          "centerGlow": false,
+          "spotlight": false,
+          "rounded": false
+        },
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "Longhorn volumes healthy",
+      "description": "Attached Longhorn volumes that are healthy, out of all attached volumes. Detached volumes report robustness 'unknown' by design and are not counted. Full green only when every one is good; light green at 90% or more, yellow at 70%, orange at 40%, red below that. The arc starts 8 points below zero so that 0% still shows as a red sliver; the number is always exact.",
+      "id": 22,
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"longhorn\" and r._field == \"longhorn_volume_robustness\")\n  |> group(columns: [\"volume\", \"state\"])\n  |> last()\n  |> filter(fn: (r) => r._value == 1.0 and r.state != \"unknown\")\n  |> map(fn: (r) => ({volume: r.volume, good: if r.state == \"healthy\" then 1 else 0}))\n  |> group()\n  |> reduce(identity: {good: 0, total: 0}, fn: (r, accumulator) => ({good: accumulator.good + r.good, total: accumulator.total + 1}))\n  |> map(fn: (r) => ({_time: now(), status: string(v: r.good) + \" of \" + string(v: r.total) + \" volumes healthy\", _value: 100.0 * float(v: r.good) / float(v: r.total)}))\n  |> group(columns: [\"status\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 40
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "light-green",
+                "value": 90
+              },
+              {
+                "color": "green",
+                "value": 100
+              }
+            ]
+          },
+          "min": -8,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdMarkers": false,
+        "showThresholdLabels": false,
+        "orientation": "auto",
+        "minVizHeight": 120,
+        "minVizWidth": 120,
+        "sizing": "auto",
+        "effects": {
+          "gradient": false,
+          "barGlow": false,
+          "centerGlow": false,
+          "spotlight": false,
+          "rounded": false
+        },
+        "textMode": "value_and_name"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 48
       }
     },
     {
@@ -871,142 +967,10 @@
       ],
       "id": 16,
       "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 12,
-        "y": 48
-      },
-      "datasource": {
-        "type": "influxdb",
-        "uid": "influxdb-pilab"
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Longhorn volumes healthy",
-      "description": "Attached Longhorn volumes that are healthy, out of all attached volumes. Detached volumes report robustness 'unknown' by design and are not counted. Full green only when every one is good; light green at 90% or more, yellow at 70%, orange at 40%, red below that.",
-      "id": 22,
-      "datasource": {
-        "type": "influxdb",
-        "uid": "influxdb-pilab"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "influxdb",
-            "uid": "influxdb-pilab"
-          },
-          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"longhorn\" and r._field == \"longhorn_volume_robustness\")\n  |> group(columns: [\"volume\", \"state\"])\n  |> last()\n  |> filter(fn: (r) => r._value == 1.0 and r.state != \"unknown\")\n  |> map(fn: (r) => ({volume: r.volume, good: if r.state == \"healthy\" then 1 else 0}))\n  |> group()\n  |> reduce(identity: {good: 0, total: 0}, fn: (r, accumulator) => ({good: accumulator.good + r.good, total: accumulator.total + 1}))\n  |> map(fn: (r) => ({_time: now(), status: string(v: r.good) + \" of \" + string(v: r.total) + \" volumes healthy\", _value: 100.0 * float(v: r.good) / float(v: r.total)}))\n  |> group(columns: [\"status\"])"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "decimals": 0,
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 40
-              },
-              {
-                "color": "yellow",
-                "value": 70
-              },
-              {
-                "color": "light-green",
-                "value": 90
-              },
-              {
-                "color": "green",
-                "value": 100
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "wideLayout": true
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
+        "h": 6,
+        "w": 24,
         "x": 0,
-        "y": 55
-      }
-    },
-    {
-      "type": "table",
-      "title": "Longhorn volumes needing attention",
-      "description": "Attached volumes in degraded or faulted state, with the reason. Empty means every attached volume is healthy.",
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "influxdb",
-            "uid": "influxdb-pilab"
-          },
-          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"longhorn\" and r._field == \"longhorn_volume_robustness\")\n  |> group(columns: [\"pvc_namespace\", \"pvc\", \"volume\", \"state\"])\n  |> last()\n  |> filter(fn: (r) => r._value == 1.0 and r.state != \"unknown\" and r.state != \"healthy\")\n  |> group()\n  |> map(fn: (r) => ({volume: r.pvc_namespace + \"/\" + r.pvc, state: r.state}))"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "custom": {
-            "cellOptions": {
-              "type": "auto",
-              "wrapText": true
-            }
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "showHeader": true,
-        "cellHeight": "sm"
-      },
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "_start": true,
-              "_stop": true,
-              "_measurement": true,
-              "result": true,
-              "table": true
-            }
-          }
-        }
-      ],
-      "id": 18,
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 12,
-        "y": 55
+        "y": 56
       },
       "datasource": {
         "type": "influxdb",
