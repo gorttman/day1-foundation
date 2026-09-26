@@ -103,7 +103,9 @@ data:
             # channel is wired.
             #
             # Load average per core, per node, from Telegraf. Around 1 means
-            # every core is busy; sustained above 2 means work is queueing.
+            # every core is busy. Normal load with the download stack running sits at
+            # about 2.5 to 3 per core; the 2026-09-26 NFS hang reached about 600. The
+            # threshold is 6 (raised from 2 on 2026-09-27, when 2 fired on normal load).
             condition: C
             data:
               - refId: A
@@ -148,7 +150,7 @@ data:
                   conditions:
                     - evaluator:
                         type: gt
-                        params: [2]
+                        params: [6]
                       operator:
                         type: and
                       query:
@@ -158,14 +160,14 @@ data:
                       type: query
             noDataState: NoData
             execErrState: Error
-            for: 10m
+            for: 15m
             labels:
               severity: warning
             annotations:
-              summary: "{{ $labels.host }} load per core is above 2"
+              summary: "{{ $labels.host }} load per core is above 6"
               description: >-
-                {{ $labels.host }} has had more than 2 load-average units per
-                CPU core for 10+ minutes. Check for processes stuck in
+                {{ $labels.host }} has had more than 6 load-average units per
+                CPU core for 15+ minutes. Check for processes stuck in
                 uninterruptible I/O wait (ps -eLo stat,wchan:32,comm | grep '^D'),
                 usually a hung NFS mount to the QNAP.
 

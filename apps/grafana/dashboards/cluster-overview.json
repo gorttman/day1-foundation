@@ -213,7 +213,7 @@
     {
       "type": "timeseries",
       "title": "Load per core (1 min load / CPU cores)",
-      "description": "Load average divided by the node's cores. About 1 means every core is busy; sustained above 2 means work is queueing (the 2026-09-26 NFS hang reached about 600). Alert rule: Platform > Node load per core high.",
+      "description": "Load average divided by the node's cores. About 1 means every core is busy; 2 to 3 is normal while the download stack runs. Orange line at 3, red line at 6: sustained above 6 means work is queueing (the 2026-09-26 NFS hang reached about 600). Alert rule: Platform > Node load per core high (fires above 6 for 15 minutes).",
       "targets": [
         {
           "refId": "A",
@@ -245,11 +245,11 @@
               },
               {
                 "color": "orange",
-                "value": 1
+                "value": 3
               },
               {
                 "color": "red",
-                "value": 2
+                "value": 6
               }
             ]
           },
