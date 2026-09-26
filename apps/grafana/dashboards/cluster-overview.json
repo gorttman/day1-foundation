@@ -262,8 +262,8 @@
     },
     {
       "type": "timeseries",
-      "title": "SoC temperature",
-      "description": "Hottest sensor per node.",
+      "title": "Temperature: SoC and NVMe",
+      "description": "cpu_thermal is the SoC, nvme_composite the NVMe drive. Other sensors (nvme_sensor_2, rp1_adc) are left out: nvme_sensor_2 reads much higher and is not the drive's headline temperature.",
       "targets": [
         {
           "refId": "A",
@@ -271,7 +271,7 @@
             "type": "influxdb",
             "uid": "influxdb-pilab"
           },
-          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"temp\" and r._field == \"temp\")\n  |> group(columns: [\"host\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: max, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"host\"])"
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"temp\" and r._field == \"temp\" and (r.sensor == \"cpu_thermal\" or r.sensor == \"nvme_composite\"))\n  |> group(columns: [\"host\", \"sensor\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: max, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"host\", \"sensor\"])"
         }
       ],
       "fieldConfig": {
