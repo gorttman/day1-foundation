@@ -3,7 +3,7 @@
 # metrics database, shared with the route-validation and memory jobs):
 #   node.conf     - DaemonSet: host metrics + kubelet pod/node stats
 #   platform.conf - Deployment: Prometheus scrapes of InfluxDB, ArgoCD,
-#                   Longhorn, cert-manager
+#                   Longhorn (each manager pod, see README), cert-manager
 #   ai.conf       - Deployment: LiteLLM /metrics scrape. Its target does not
 #                   exist until build-plan Stage 1; scrape errors in this
 #                   pod's log until then are expected and isolated here.
@@ -84,7 +84,13 @@ data:
         service = "argocd"
 
     [[inputs.prometheus]]
-      urls = ["http://longhorn-backend.longhorn-system.svc.cluster.local:9500/metrics"]
+      monitor_kubernetes_pods = true
+      monitor_kubernetes_pods_method = "settings"
+      monitor_kubernetes_pods_scheme = "http"
+      monitor_kubernetes_pods_port = 9500
+      monitor_kubernetes_pods_path = "/metrics"
+      monitor_kubernetes_pods_namespace = "longhorn-system"
+      kubernetes_label_selector = "app=longhorn-manager"
       metric_version = 2
       fieldinclude = ["longhorn_volume_robustness", "longhorn_volume_actual_size_bytes", "longhorn_volume_capacity_bytes", "longhorn_node_storage_usage_bytes", "longhorn_node_storage_capacity_bytes"]
       [inputs.prometheus.tags]

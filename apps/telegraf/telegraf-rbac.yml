@@ -34,3 +34,34 @@ subjects:
   - kind: ServiceAccount
     name: telegraf
     namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: telegraf-pod-discovery
+  namespace: longhorn-system
+  labels:
+    app.kubernetes.io/name: telegraf
+    app.kubernetes.io/part-of: observability
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: telegraf-pod-discovery
+  namespace: longhorn-system
+  labels:
+    app.kubernetes.io/name: telegraf
+    app.kubernetes.io/part-of: observability
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: telegraf-pod-discovery
+subjects:
+  - kind: ServiceAccount
+    name: telegraf
+    namespace: monitoring
+

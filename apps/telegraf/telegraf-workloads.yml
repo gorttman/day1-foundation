@@ -93,6 +93,7 @@ spec:
         app.kubernetes.io/component: platform-scrape
         app.kubernetes.io/part-of: observability
     spec:
+      serviceAccountName: telegraf
       enableServiceLinks: false
       containers:
         - name: telegraf

@@ -33,6 +33,15 @@ Telegraf `kubernetes` input calls `/pods` first: without it the input fails with
 (it can reach other kubelet endpoints); accepted here because the agent is a
 trusted image on a single-user cluster.
 
+## Longhorn scraping
+Each Longhorn manager pod reports only its own node's storage and the volumes it
+manages, so scraping the `longhorn-backend` Service saw one node at a time (Telegraf
+keeps one connection open, so it stuck to a single manager). `telegraf-platform`
+now discovers the manager pods by label (`app=longhorn-manager`, namespace
+`longhorn-system`) and scrapes each one. That needs the `telegraf-pod-discovery` Role
+(get/list/watch pods in `longhorn-system` only) bound to the `telegraf` ServiceAccount,
+which the Deployment now runs as.
+
 ## Contracts for later build-plan stages
 These are settings other stages must honour. They are written here so no stage
 depends on remembering them.
