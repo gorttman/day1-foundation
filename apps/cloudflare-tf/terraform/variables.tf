@@ -113,6 +113,21 @@ variable "tunneled_hostnames" {
     "jellyfin.i3sec.com.au" = {
       origin = "http://jellyfin.jellyfin.svc.cluster.local:8096"
     }
+    # Added 2026-09-26: the homelab reports and the Grafana dashboards
+    # behind them, for off-LAN access. All three use Traefik-class ingresses
+    # (not ingress-nginx), so like immich/jellyfin above each points straight
+    # at its ClusterIP Service. Same zone-wide mTLS WAF gate as everything
+    # else; Grafana keeps its own login on top. On-LAN, Pi-hole/CoreDNS
+    # still resolve all three to the Traefik VIP (split-horizon).
+    "reports.i3sec.com.au" = {
+      origin = "http://reports.reports.svc.cluster.local:80"
+    }
+    "grafana.i3sec.com.au" = {
+      origin = "http://grafana.monitoring.svc.cluster.local:3000"
+    }
+    "movie-status.i3sec.com.au" = {
+      origin = "http://movie-status.arr-stack.svc.cluster.local:80"
+    }
   }
 }
 
