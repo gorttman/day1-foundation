@@ -866,9 +866,13 @@
       }
     },
     {
-      "type": "bargauge",
+      "type": "table",
       "title": "Longhorn node storage used %",
-      "description": "",
+      "description": "Share of each Longhorn node's disk in use. Orange over 70%, red over 85%.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      },
       "targets": [
         {
           "refId": "A",
@@ -876,58 +880,111 @@
             "type": "influxdb",
             "uid": "influxdb-pilab"
           },
-          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"longhorn\" and (r._field == \"longhorn_node_storage_usage_bytes\" or r._field == \"longhorn_node_storage_capacity_bytes\"))\n  |> group(columns: [\"node\", \"_field\"])\n  |> last()\n  |> group(columns: [\"node\"])\n  |> pivot(rowKey: [\"node\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> map(fn: (r) => ({node: r.node, _value: 100.0 * r.longhorn_node_storage_usage_bytes / r.longhorn_node_storage_capacity_bytes}))\n  |> group()"
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -3m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"longhorn\" and (r._field == \"longhorn_node_storage_usage_bytes\" or r._field == \"longhorn_node_storage_capacity_bytes\"))\n  |> group(columns: [\"node\", \"_field\"])\n  |> last()\n  |> group(columns: [\"node\"])\n  |> pivot(rowKey: [\"node\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> map(fn: (r) => ({node: r.node, used: 100.0 * r.longhorn_node_storage_usage_bytes / r.longhorn_node_storage_capacity_bytes}))\n  |> group()"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "percent",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "used"
+            },
+            "properties": [
               {
-                "color": "green",
-                "value": null
+                "id": "unit",
+                "value": "percent"
               },
               {
-                "color": "orange",
-                "value": 70
+                "id": "min",
+                "value": 0
               },
               {
-                "color": "red",
-                "value": 85
+                "id": "max",
+                "value": 100
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 70
+                    },
+                    {
+                      "color": "red",
+                      "value": 85
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 150
               }
             ]
-          },
-          "max": 100
-        },
-        "overrides": []
+          }
+        ]
       },
       "options": {
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "",
-          "values": true
-        },
-        "orientation": "horizontal",
-        "displayMode": "gradient",
-        "showUnfilled": true,
-        "namePlacement": "top",
-        "minVizHeight": 16
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "used",
+            "desc": true
+          }
+        ]
       },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "node": 0,
+              "used": 1
+            }
+          }
+        }
+      ],
       "id": 17,
       "gridPos": {
         "h": 6,
         "w": 12,
         "x": 0,
         "y": 56
-      },
-      "datasource": {
-        "type": "influxdb",
-        "uid": "influxdb-pilab"
       }
     },
     {
@@ -987,9 +1044,13 @@
       }
     },
     {
-      "type": "bargauge",
+      "type": "table",
       "title": "Certificates: days to expiry (soonest 10)",
-      "description": "",
+      "description": "Days until each cert-manager certificate expires. Red under 14 days, orange under 30. Let's Encrypt certificates renew at 30 days left, so green ones are healthy.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      },
       "targets": [
         {
           "refId": "A",
@@ -997,57 +1058,111 @@
             "type": "influxdb",
             "uid": "influxdb-pilab"
           },
-          "query": "from(bucket: \"telegraf\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"cert-manager\" and r._field == \"certmanager_certificate_expiration_timestamp_seconds\")\n  |> group(columns: [\"namespace\", \"name\"])\n  |> last()\n  |> map(fn: (r) => ({cert: r.namespace + \"/\" + r.name, _value: (r._value - float(v: int(v: now()) / 1000000000)) / 86400.0}))\n  |> group()\n  |> sort(columns: [\"_value\"])\n  |> limit(n: 10)"
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"prometheus\" and r.service == \"cert-manager\" and r._field == \"certmanager_certificate_expiration_timestamp_seconds\")\n  |> group(columns: [\"namespace\", \"name\"])\n  |> last()\n  |> map(fn: (r) => ({cert: r.namespace + \"/\" + r.name, days: (r._value - float(v: int(v: now()) / 1000000000)) / 86400.0}))\n  |> group()\n  |> sort(columns: [\"days\"])\n  |> limit(n: 10)"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: days",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "days"
+            },
+            "properties": [
               {
-                "color": "red",
-                "value": null
+                "id": "unit",
+                "value": "suffix: days"
               },
               {
-                "color": "orange",
-                "value": 14
+                "id": "min",
+                "value": 0
               },
               {
-                "color": "green",
-                "value": 30
+                "id": "max",
+                "value": 90
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 14
+                    },
+                    {
+                      "color": "green",
+                      "value": 30
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 150
               }
             ]
           }
-        },
-        "overrides": []
+        ]
       },
       "options": {
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "",
-          "values": true
-        },
-        "orientation": "horizontal",
-        "displayMode": "gradient",
-        "showUnfilled": true,
-        "namePlacement": "top",
-        "minVizHeight": 16
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "days",
+            "desc": false
+          }
+        ]
       },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "cert": 0,
+              "days": 1
+            }
+          }
+        }
+      ],
       "id": 19,
       "gridPos": {
-        "h": 6,
+        "h": 12,
         "w": 12,
         "x": 0,
         "y": 62
-      },
-      "datasource": {
-        "type": "influxdb",
-        "uid": "influxdb-pilab"
       }
     },
     {
@@ -1142,7 +1257,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 68
+        "y": 74
       },
       "datasource": {
         "type": "influxdb",
