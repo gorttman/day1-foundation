@@ -10,6 +10,8 @@ resources:
   - grafana-sealed-secret.yml
   - grafana-pvc.yml
   - grafana-datasource-cm.yml
+  - grafana-dashboard-provider-cm.yml
+  - grafana-dashboards-cm.yml
   - grafana-deployment.yml
   - grafana-service.yml
   - grafana-ingress.yml

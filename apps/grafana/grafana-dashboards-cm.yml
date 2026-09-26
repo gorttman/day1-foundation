@@ -1,0 +1,755 @@
+# Dashboards provisioned from Git. Grafana loads every JSON file in this
+# ConfigMap into the "Reports" folder (see grafana-dashboard-provider-cm.yml).
+# Edits made in the Grafana UI are allowed but are overwritten on the next
+# sync - export the JSON back here to keep them.
+#
+# subscriptions.json reads the "subscriptions" InfluxDB bucket: sub_charge
+# (every charge found in email, backfilled 2026-09-26) and sub_state (the
+# current list from day2-services apps/reports subscriptions.json).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/component: visualization
+    argocd.argoproj.io/managed-by: argocd
+data:
+  subscriptions.json: |
+    {
+      "uid": "subscriptions",
+      "title": "Subscriptions",
+      "tags": [
+        "reports",
+        "subscriptions"
+      ],
+      "timezone": "Australia/Sydney",
+      "schemaVersion": 41,
+      "time": {
+        "from": "now-2y",
+        "to": "now"
+      },
+      "refresh": "",
+      "editable": true,
+      "graphTooltip": 1,
+      "panels": [
+        {
+          "type": "stat",
+          "title": "Monthly subscriptions, per month",
+          "description": "Active monthly plans, from the current list. USD/EUR converted at fixed rates.",
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "influxdb",
+                "uid": "influxdb-pilab"
+              },
+              "query": "from(bucket: \"subscriptions\") |> range(start: -3650d) |> filter(fn: (r) => r._measurement == \"sub_state\" and r._field == \"monthly_aud\" and r.status == \"active\") |> last() |> group() |> sum() |> map(fn: (r) => ({r with _field: \"All active, averaged monthly\"}))"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyAUD",
+              "decimals": 0,
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#1c6b56"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "value_and_name"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 0,
+            "w": 6,
+            "h": 5
+          },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "id": 1
+        },
+        {
+          "type": "stat",
+          "title": "Per year",
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "influxdb",
+                "uid": "influxdb-pilab"
+              },
+              "query": "from(bucket: \"subscriptions\") |> range(start: -3650d) |> filter(fn: (r) => r._measurement == \"sub_state\" and r._field == \"monthly_aud\" and r.status == \"active\") |> last() |> group() |> sum() |> map(fn: (r) => ({r with _value: r._value * 12.0, _field: \"Yearly equivalent\"}))"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyAUD",
+              "decimals": 0,
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#1c6b56"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "value_and_name"
+          },
+          "gridPos": {
+            "x": 6,
+            "y": 0,
+            "w": 6,
+            "h": 5
+          },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "id": 2
+        },
+        {
+          "type": "stat",
+          "title": "Charged in the last 30 days",
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "influxdb",
+                "uid": "influxdb-pilab"
+              },
+              "query": "from(bucket: \"subscriptions\") |> range(start: -30d) |> filter(fn: (r) => r._measurement == \"sub_charge\" and r._field == \"amount_aud\") |> group() |> sum() |> map(fn: (r) => ({r with _field: \"Actually charged\"}))"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyAUD",
+              "decimals": 0,
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#2f5597"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "value_and_name"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 0,
+            "w": 6,
+            "h": 5
+          },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "id": 3
+        },
+        {
+          "type": "stat",
+          "title": "Active subscriptions",
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "influxdb",
+                "uid": "influxdb-pilab"
+              },
+              "query": "from(bucket: \"subscriptions\") |> range(start: -3650d) |> filter(fn: (r) => r._measurement == \"sub_state\" and r._field == \"monthly_aud\") |> last() |> group(columns: [\"status\"]) |> count()"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "#5b6b66",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "_value active"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Active"
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#1f7a4d"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "_value review"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "To check"
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#a35f00"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "_value cancelled"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Cancelled"
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#b3372b"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "value_and_name"
+          },
+          "gridPos": {
+            "x": 18,
+            "y": 0,
+            "w": 6,
+            "h": 5
+          },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "id": 4
+        },
+        {
+          "type": "barchart",
+          "title": "Monthly spend by service",
+          "description": "Every charge found in email, summed per calendar month. Rows marked estimated used the neighbouring months' price.",
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "influxdb",
+                "uid": "influxdb-pilab"
+              },
+              "query": "from(bucket: \"subscriptions\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"sub_charge\" and r._field == \"amount_aud\") |> group(columns: [\"service\"]) |> aggregateWindow(every: 1mo, fn: sum, createEmpty: true, timeSrc: \"_start\") |> fill(value: 0.0) |> pivot(rowKey: [\"_time\"], columnKey: [\"service\"], valueColumn: \"_value\")"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyAUD",
+              "decimals": 0,
+              "custom": {
+                "fillOpacity": 85,
+                "lineWidth": 0
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "stacking": "normal",
+            "xTickLabelRotation": -45,
+            "xField": "_time",
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "calcs": [
+                "sum"
+              ],
+              "sortBy": "Total",
+              "sortDesc": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            },
+            "barWidth": 0.8
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 5,
+            "w": 24,
+            "h": 12
+          },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "id": 5
+        },
+        {
+          "type": "timeseries",
+          "title": "Cumulative spend",
+          "description": "Running total of every charge in the selected time range.",
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "influxdb",
+                "uid": "influxdb-pilab"
+              },
+              "query": "from(bucket: \"subscriptions\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"sub_charge\" and r._field == \"amount_aud\") |> group() |> aggregateWindow(every: 1mo, fn: sum, createEmpty: true, timeSrc: \"_start\") |> fill(value: 0.0) |> cumulativeSum() |> map(fn: (r) => ({r with _field: \"Cumulative\"})) "
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyAUD",
+              "decimals": 0,
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "showPoints": "always",
+                "pointSize": 4
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "showLegend": false
+            },
+            "tooltip": {
+              "mode": "single"
+            }
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 17,
+            "w": 12,
+            "h": 8
+          },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "id": 6
+        },
+        {
+          "type": "piechart",
+          "title": "By category",
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "influxdb",
+                "uid": "influxdb-pilab"
+              },
+              "query": "from(bucket: \"subscriptions\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"sub_charge\" and r._field == \"amount_aud\") |> group(columns: [\"category\"]) |> sum()"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyAUD",
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "options": {
+            "pieType": "donut",
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "values": [
+                "value",
+                "percent"
+              ]
+            },
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "values": false
+            }
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 17,
+            "w": 6,
+            "h": 8
+          },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "id": 7
+        },
+        {
+          "type": "bargauge",
+          "title": "By payment method",
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "influxdb",
+                "uid": "influxdb-pilab"
+              },
+              "query": "from(bucket: \"subscriptions\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"sub_charge\" and r._field == \"amount_aud\") |> group(columns: [\"via\"]) |> sum()"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyAUD",
+              "decimals": 0,
+              "color": {
+                "mode": "palette-classic"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "values": false
+            }
+          },
+          "gridPos": {
+            "x": 18,
+            "y": 17,
+            "w": 6,
+            "h": 8
+          },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "id": 8
+        },
+        {
+          "type": "table",
+          "title": "Current subscriptions",
+          "description": "From the subscription list (subscriptions.json). Monthly cost averages yearly and multi-year plans.",
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "influxdb",
+                "uid": "influxdb-pilab"
+              },
+              "query": "from(bucket: \"subscriptions\") |> range(start: -3650d) |> filter(fn: (r) => r._measurement == \"sub_state\") |> last() |> pivot(rowKey: [\"service\"], columnKey: [\"_field\"], valueColumn: \"_value\") |> group() |> keep(columns: [\"service\",\"status\",\"category\",\"via\",\"price\",\"cycle_months\",\"monthly_aud\",\"next\",\"note\"]) |> sort(columns: [\"monthly_aud\"], desc: true)"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                }
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "monthly_aud"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Per month"
+                  },
+                  {
+                    "id": "unit",
+                    "value": "currencyAUD"
+                  },
+                  {
+                    "id": "decimals",
+                    "value": 2
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "price"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Price"
+                  },
+                  {
+                    "id": "decimals",
+                    "value": 2
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "cycle_months"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Months"
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "next"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Next charge"
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "note"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Note"
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 380
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "service"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Service"
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 210
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "status"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Status"
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "basic"
+                    }
+                  },
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "active": {
+                            "color": "green",
+                            "text": "Active"
+                          },
+                          "review": {
+                            "color": "orange",
+                            "text": "Check"
+                          },
+                          "cancelled": {
+                            "color": "red",
+                            "text": "Cancelled"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "sortBy": [
+              {
+                "displayName": "Per month",
+                "desc": true
+              }
+            ]
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 25,
+            "w": 24,
+            "h": 12
+          },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "id": 9
+        },
+        {
+          "type": "table",
+          "title": "Recent charges",
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "influxdb",
+                "uid": "influxdb-pilab"
+              },
+              "query": "from(bucket: \"subscriptions\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"sub_charge\" and r._field == \"amount_aud\") |> group() |> sort(columns: [\"_time\"], desc: true) |> limit(n: 40) |> keep(columns: [\"_time\",\"service\",\"via\",\"currency\",\"estimated\",\"_value\"])"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "_value"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "A$"
+                  },
+                  {
+                    "id": "unit",
+                    "value": "currencyAUD"
+                  },
+                  {
+                    "id": "decimals",
+                    "value": 2
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "_time"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Date"
+                  },
+                  {
+                    "id": "unit",
+                    "value": "time:YYYY-MM-DD"
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 37,
+            "w": 24,
+            "h": 10
+          },
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "id": 10
+        }
+      ],
+      "links": [
+        {
+          "title": "Subscriptions report",
+          "url": "https://reports.i3sec.com.au/subscriptions/",
+          "type": "link",
+          "targetBlank": true,
+          "icon": "external link"
+        },
+        {
+          "title": "All reports",
+          "url": "https://reports.i3sec.com.au/",
+          "type": "link",
+          "targetBlank": true,
+          "icon": "external link"
+        }
+      ]
+    }

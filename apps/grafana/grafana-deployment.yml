@@ -92,6 +92,12 @@ spec:
         - name: datasources
           mountPath: /etc/grafana/provisioning/datasources
           readOnly: true
+        - name: dashboard-provider
+          mountPath: /etc/grafana/provisioning/dashboards
+          readOnly: true
+        - name: dashboards
+          mountPath: /var/lib/grafana-dashboards/reports
+          readOnly: true
         resources:
           requests:
             memory: "128Mi"
@@ -176,3 +182,9 @@ spec:
       - name: datasources
         configMap:
           name: grafana-datasources
+      - name: dashboard-provider
+        configMap:
+          name: grafana-dashboard-provider
+      - name: dashboards
+        configMap:
+          name: grafana-dashboards

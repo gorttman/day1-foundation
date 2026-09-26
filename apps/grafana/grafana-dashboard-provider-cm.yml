@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/component: visualization
+    argocd.argoproj.io/managed-by: argocd
+data:
+  reports.yml: |
+    apiVersion: 1
+    providers:
+      - name: reports
+        folder: Reports
+        type: file
+        allowUiUpdates: true
+        updateIntervalSeconds: 60
+        options:
+          path: /var/lib/grafana-dashboards/reports
