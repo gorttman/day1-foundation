@@ -49,10 +49,10 @@ spec:
                   key: INFLUX_TOKEN
           resources:
             requests:
-              memory: "48Mi"
+              memory: "96Mi"
               cpu: "20m"
             limits:
-              memory: "160Mi"
+              memory: "192Mi"
           volumeMounts:
             - name: config
               mountPath: /etc/telegraf
@@ -107,10 +107,10 @@ spec:
                   key: INFLUX_TOKEN
           resources:
             requests:
-              memory: "48Mi"
+              memory: "96Mi"
               cpu: "20m"
             limits:
-              memory: "160Mi"
+              memory: "192Mi"
           volumeMounts:
             - name: config
               mountPath: /etc/telegraf
@@ -159,10 +159,10 @@ spec:
                   key: INFLUX_TOKEN
           resources:
             requests:
-              memory: "32Mi"
+              memory: "96Mi"
               cpu: "10m"
             limits:
-              memory: "96Mi"
+              memory: "192Mi"
           volumeMounts:
             - name: config
               mountPath: /etc/telegraf
