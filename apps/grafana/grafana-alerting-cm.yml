@@ -87,3 +87,85 @@ data:
                 a stalled consumer/process (this is exactly the pattern that
                 let the Paperless consume queue sit stuck for a week
                 unnoticed on 2026-09-18) - check the relevant service.
+  platform-alerts.yml: |
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: platform-alerts
+        folder: Platform
+        interval: 1m
+        rules:
+          - uid: node-load-per-core-high
+            title: "Node load per core high"
+            # Added after the 2026-09-26 k8smaster NFS hang (load ~2400 on 4
+            # cores, ~600 per core) sat unnoticed for hours. Same rule-only
+            # limitation as above: shows Alerting in the UI, no notification
+            # channel is wired.
+            #
+            # Load average per core, per node, from Telegraf. Around 1 means
+            # every core is busy; sustained above 2 means work is queueing.
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: >-
+                    from(bucket: "telegraf")
+                      |> range(start: -10m)
+                      |> filter(fn: (r) => r._measurement == "system" and (r._field == "load1" or r._field == "n_cpus"))
+                      |> group(columns: ["host", "_field"])
+                      |> last()
+                      |> toFloat()
+                      |> group(columns: ["host"])
+                      |> pivot(rowKey: ["_time", "host"], columnKey: ["_field"], valueColumn: "_value")
+                      |> map(fn: (r) => ({_time: r._time, host: r.host, _value: r.load1 / float(v: r.n_cpus)}))
+                      |> group(columns: ["host"])
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params: [2]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: NoData
+            execErrState: Error
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.host }} load per core is above 2"
+              description: >-
+                {{ $labels.host }} has had more than 2 load-average units per
+                CPU core for 10+ minutes. Check for processes stuck in
+                uninterruptible I/O wait (ps -eLo stat,wchan:32,comm | grep '^D'),
+                usually a hung NFS mount to the QNAP.
+
