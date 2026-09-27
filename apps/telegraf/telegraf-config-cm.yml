@@ -4,9 +4,8 @@
 #   node.conf     - DaemonSet: host metrics + kubelet pod/node stats
 #   platform.conf - Deployment: Prometheus scrapes of InfluxDB, ArgoCD,
 #                   Longhorn (each manager pod, see README), cert-manager
-#   ai.conf       - Deployment: LiteLLM /metrics scrape. Its target does not
-#                   exist until build-plan Stage 1; scrape errors in this
-#                   pod's log until then are expected and isolated here.
+#   ai.conf       - Deployment: LiteLLM /metrics scrape (apps/litellm in
+#                   day2-services, live since 2026-09-27).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -123,3 +122,18 @@ data:
       fieldinclude = ["litellm_*"]
       [inputs.prometheus.tags]
         service = "litellm"
+
+    # LiteLLM reports +Inf for keys and users that have no budget (the master key,
+    # the default user). InfluxDB line protocol cannot store infinity, and the
+    # write logged "serialization of metric(s) failed" every 30 s. Drop non-finite
+    # values here; a metric left with no fields is dropped entirely.
+    [[processors.starlark]]
+      source = '''
+    def apply(metric):
+        for k, v in list(metric.fields.items()):
+            if type(v) == "float" and (v != v or v > 1.7e308 or v < -1.7e308):
+                metric.fields.pop(k)
+        for k in metric.fields:
+            return metric
+        return None
+    '''
