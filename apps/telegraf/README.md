@@ -50,13 +50,12 @@ node, so this adds little exposure.
 These are settings other stages must honour. They are written here so no stage
 depends on remembering them.
 
-**Stage 1 (LiteLLM):**
-- Deploy as Service `litellm` in namespace `litellm`, port 4000. If the name
-  differs, change `ai.conf` in `telegraf-config-cm.yml` and the namespace regex in
-  the "AI platform pod memory" panel.
-- Set `litellm_settings.callbacks: ["prometheus"]`.
-- Set `require_auth_for_metrics_endpoint: false` (default is to require an API key;
-  Telegraf has none). Safe because the Service is ClusterIP only.
+**Stage 1 (LiteLLM): done 2026-09-27.** LiteLLM runs as Service `litellm` in namespace
+`litellm`, port 4000 (`day2-services/apps/litellm`), with the Prometheus callback on and
+`require_auth_for_metrics_endpoint: false` (ClusterIP only). If the Service name or
+namespace ever changes, change `conf/ai.conf` and the namespace regex in the "AI platform
+pod memory" panel. LiteLLM reports `+Inf` for keys and users with no budget; the
+Starlark processor in `conf/ai.conf` drops non-finite values before the write.
 
 **Stage 2 (route-validation CronJob)** writes line protocol to bucket
 `ai_metrics`, measurement `route_validation`:
@@ -76,3 +75,8 @@ empty panel.
 ## Notes
 - Telegraf 1.40 removed `fieldpass`; use `fieldinclude`.
 - InfluxDB stays on 2.7: the Grafana datasource uses Flux, which 3.x does not have.
+
+## Config rolls the pods
+The three `.conf` files under `conf/` are turned into a ConfigMap with a content hash in
+its name (`configMapGenerator` in `kustomization.yml`). Editing a `.conf` therefore
+changes the pod specs and rolls the pods; Telegraf does not reload its config itself.

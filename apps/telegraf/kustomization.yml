@@ -8,5 +8,24 @@ namespace: monitoring
 resources:
   - telegraf-sealed-secret.yml
   - telegraf-rbac.yml
-  - telegraf-config-cm.yml
   - telegraf-workloads.yml
+
+# Default name-hash suffix stays ON: editing a .conf changes the ConfigMap name,
+# which changes the pod specs and rolls them. Telegraf only reads its config at
+# start, so a stable name would keep running the old config until someone
+# restarted the pods by hand.
+#   conf/node.conf     - DaemonSet: host metrics + kubelet pod/node stats
+#   conf/platform.conf - Deployment: Prometheus scrapes of InfluxDB, ArgoCD,
+#                        Longhorn (each manager pod), cert-manager
+#   conf/ai.conf       - Deployment: LiteLLM /metrics scrape (apps/litellm in
+#                        day2-services, live since 2026-09-27)
+configMapGenerator:
+  - name: telegraf-config
+    files:
+      - conf/node.conf
+      - conf/platform.conf
+      - conf/ai.conf
+    options:
+      labels:
+        app.kubernetes.io/name: telegraf
+        app.kubernetes.io/part-of: observability
