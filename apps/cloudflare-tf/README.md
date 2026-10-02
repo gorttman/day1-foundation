@@ -405,7 +405,7 @@ design.
 
 `warp.tf` lets `gorttman@i3sec.com.au` and `brett@i3sec.com.au` (only —
 `var.warp_authorized_emails`) reach two trusted LAN IPs from anywhere,
-by enrolling a device in Cloudflare WARP: k8smaster (`192.168.2.10`,
+by enrolling a device in Cloudflare WARP: k8smaster (`192.168.20.10`,
 SSH) and the UniFi Dream Machine's admin console (`192.168.2.1`,
 HTTPS — added 2026-08-16, HISTORY.md #18). Three resources:
 
@@ -466,7 +466,7 @@ the client certs above — nothing to codify here):
 1. Install the Cloudflare One (WARP) app.
 2. Team domain: `i3sec`.
 3. Log in with an authorized email; complete the OTP.
-4. SSH to `192.168.2.10`, or browse to `https://192.168.2.1`, exactly
+4. SSH to `192.168.20.10`, or browse to `https://192.168.2.1`, exactly
    as on the LAN — same key/credentials, same address. WARP only
    supplies the network path when off-LAN; it adds no new auth layer
    of its own.

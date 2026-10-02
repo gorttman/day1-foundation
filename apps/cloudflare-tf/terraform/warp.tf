@@ -1,7 +1,7 @@
-# WARP client access to k8smaster (192.168.2.10) for off-LAN SSH, e.g. while
+# WARP client access to k8smaster (192.168.20.10) for off-LAN SSH, e.g. while
 # travelling. Three pieces, all required together:
 #
-#   1. A private network route on the existing tunnel, so 192.168.2.10 is
+#   1. A private network route on the existing tunnel, so 192.168.20.10 is
 #      reachable through it at all.
 #   2. The account's default WARP device profile, switched from its stock
 #      "exclude everything private" split-tunnel mode to "include only
@@ -17,7 +17,7 @@
 #      accepted by the identity provider, but only these emails are allowed
 #      to finish enrolling a device.
 #
-# Once enrolled, SSH itself is unchanged: same key, same `ssh 192.168.2.10`,
+# Once enrolled, SSH itself is unchanged: same key, same `ssh 192.168.20.10`,
 # WARP only provides the network path when off the home LAN.
 #
 # Extended 2026-08-16 to also cover the UniFi Dream Machine's admin console
@@ -107,7 +107,7 @@ import {
 resource "cloudflare_zero_trust_access_application" "warp_enrollment" {
   account_id = var.account_id
   type       = "warp"
-  name       = "WARP Client Enrollment"
+  name       = "Warp Login App" # matches the live dashboard name (renamed there by hand); kept as-is 2026-10-03
 
   policies = [{
     name       = "Authorized WARP users"

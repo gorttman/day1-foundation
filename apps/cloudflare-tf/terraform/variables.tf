@@ -144,9 +144,9 @@ variable "allowed_client_cert_fingerprints" {
 }
 
 variable "k8smaster_lan_ip" {
-  description = "LAN IP of the k3s control-plane node, reachable over the tunnel's private network route once WARP is enrolled."
+  description = "IP of the k3s control-plane node, reachable over the tunnel's private network route once WARP is enrolled. 192.168.20.10 (Trusted/VLAN20) since the 2026-08-30 backend migration - the old main-LAN 192.168.2.10 no longer answers, so the WARP SSH route silently pointed at nothing until corrected 2026-10-03."
   type        = string
-  default     = "192.168.2.10"
+  default     = "192.168.20.10"
 }
 
 variable "unifi_udm_lan_ip" {
