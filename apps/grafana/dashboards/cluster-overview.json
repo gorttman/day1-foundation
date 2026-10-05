@@ -32,9 +32,212 @@
       "includeVars": false,
       "keepTime": true,
       "icon": "external link"
+    },
+    {
+      "type": "link",
+      "title": "Reports",
+      "url": "https://reports.i3sec.com.au/",
+      "targetBlank": true,
+      "icon": "doc",
+      "tooltip": "All reports"
+    },
+    {
+      "type": "link",
+      "title": "Alerts",
+      "url": "https://grafana.i3sec.com.au/alerting/list",
+      "targetBlank": true,
+      "icon": "bolt",
+      "tooltip": "Every alert rule and its state"
     }
   ],
   "panels": [
+    {
+      "type": "alertlist",
+      "title": "Firing alerts",
+      "description": "Everything that is firing or pending right now. Empty means nothing needs you. Click an alert for its details and links.",
+      "options": {
+        "viewMode": "list",
+        "groupMode": "default",
+        "groupBy": [],
+        "maxItems": 20,
+        "sortOrder": 1,
+        "dashboardAlerts": false,
+        "alertName": "",
+        "alertInstanceLabelFilter": "",
+        "stateFilter": {
+          "firing": true,
+          "pending": true,
+          "noData": true,
+          "normal": false,
+          "error": true,
+          "recovering": false
+        },
+        "showInstances": true
+      },
+      "id": 24,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "table",
+      "title": "Pod volumes: fullest 15 (used %)",
+      "description": "How full each volume is, as seen from inside the pods that use it, including the QNAP share (media). Orange from 70%, red from 85%. Jellyfin refuses to start with under 2 GiB free on its config volume.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"kubernetes_pod_volume\" and (r._field == \"used_bytes\" or r._field == \"capacity_bytes\"))\n  |> filter(fn: (r) => not (r.volume_name =~ /^kube-api-access/))\n  |> group(columns: [\"namespace\", \"pod_name\", \"volume_name\", \"host\", \"_field\"])\n  |> last()\n  |> toFloat()\n  |> group(columns: [\"namespace\", \"pod_name\", \"volume_name\", \"host\"])\n  |> pivot(rowKey: [\"_time\", \"namespace\", \"pod_name\", \"volume_name\", \"host\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> filter(fn: (r) => r.capacity_bytes > 1000000000.0)\n  |> map(fn: (r) => ({volume: if r.capacity_bytes > 1000000000000.0 then \"QNAP media share (NFS, one row for all pods)\" else r.namespace + \"/\" + r.volume_name, used_pct: r.used_bytes / r.capacity_bytes * 100.0, used_gb: r.used_bytes / 1073741824.0, size_gb: r.capacity_bytes / 1073741824.0}))\n  |> group(columns: [\"volume\"])\n  |> max(column: \"used_pct\")\n  |> group()\n  |> sort(columns: [\"used_pct\"], desc: true)\n  |> limit(n: 15)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "used_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 70
+                    },
+                    {
+                      "color": "red",
+                      "value": 85
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "used_gb"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: GiB"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "size_gb"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: GiB"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "used_pct",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "volume": 0,
+              "used_pct": 1,
+              "used_gb": 2,
+              "size_gb": 3
+            }
+          }
+        }
+      ],
+      "id": 23,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      }
+    },
     {
       "type": "row",
       "title": "Nodes",
@@ -44,7 +247,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 0
+        "y": 8
       },
       "panels": []
     },
@@ -101,7 +304,7 @@
         "h": 3,
         "w": 24,
         "x": 0,
-        "y": 1
+        "y": 9
       },
       "datasource": {
         "type": "influxdb",
@@ -152,7 +355,7 @@
         "h": 5,
         "w": 12,
         "x": 0,
-        "y": 4
+        "y": 12
       },
       "datasource": {
         "type": "influxdb",
@@ -203,7 +406,7 @@
         "h": 5,
         "w": 12,
         "x": 12,
-        "y": 4
+        "y": 12
       },
       "datasource": {
         "type": "influxdb",
@@ -273,7 +476,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 9
+        "y": 17
       },
       "datasource": {
         "type": "influxdb",
@@ -322,7 +525,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 9
+        "y": 17
       },
       "datasource": {
         "type": "influxdb",
@@ -373,7 +576,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 24
       },
       "datasource": {
         "type": "influxdb",
@@ -424,7 +627,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 24
       },
       "datasource": {
         "type": "influxdb",
@@ -473,7 +676,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 23
+        "y": 31
       },
       "datasource": {
         "type": "influxdb",
@@ -522,7 +725,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 23
+        "y": 31
       },
       "datasource": {
         "type": "influxdb",
@@ -538,7 +741,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 30
+        "y": 38
       },
       "panels": []
     },
@@ -623,7 +826,7 @@
         "h": 20,
         "w": 12,
         "x": 0,
-        "y": 31
+        "y": 39
       },
       "transformations": [
         {
@@ -722,7 +925,7 @@
         "h": 20,
         "w": 12,
         "x": 12,
-        "y": 31
+        "y": 39
       },
       "transformations": [
         {
@@ -745,7 +948,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 51
+        "y": 59
       },
       "panels": []
     },
@@ -758,7 +961,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 52
+        "y": 60
       },
       "datasource": {
         "type": "influxdb",
@@ -918,7 +1121,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 52
+        "y": 60
       }
     },
     {
@@ -970,7 +1173,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 60
+        "y": 68
       },
       "datasource": {
         "type": "influxdb",
@@ -1096,7 +1299,7 @@
         "h": 12,
         "w": 12,
         "x": 0,
-        "y": 66
+        "y": 74
       }
     },
     {
@@ -1218,7 +1421,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 66
+        "y": 74
       }
     },
     {
@@ -1263,7 +1466,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 78
+        "y": 86
       },
       "datasource": {
         "type": "influxdb",
@@ -1313,7 +1516,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 84
+        "y": 92
       },
       "datasource": {
         "type": "influxdb",
