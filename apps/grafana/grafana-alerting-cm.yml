@@ -908,3 +908,83 @@ data:
               summary: "Node {{ $labels.host }} disk is over 85% full"
               report: "https://grafana.i3sec.com.au/d/cluster-overview/cluster-overview"
               next_step: "See Root disk used % on the dashboard. Check what grew: container images, logs, or local volumes on that node."
+  backup-alerts.yml: |
+    # Added 2026-10-05. The backup report page (reports app) already colours each
+    # stream good, warn or crit; Telegraf copies that verdict into InfluxDB every
+    # 10 minutes (apps/telegraf/conf/platform.conf) so it can be alerted on.
+    #
+    # Only CRIT alerts, never warn: the postgres stream shows warn most days
+    # because dumps land on the QNAP about a day after they are taken. A stream
+    # must be critical for a full 24 hours before this fires. Critical on the page
+    # already means days stale (4+) or a source with no generation at all, so a
+    # day of grace loses nothing, and it stops a known gap that clears overnight
+    # (a source waiting for its first run) from messaging you.
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: backups
+        folder: Platform
+        interval: 5m
+        rules:
+          - uid: backup-stream-critical
+            title: "Backup stream critical for a day"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: |-
+                    import "strings"
+
+                    from(bucket: "telegraf")
+                      |> range(start: -40m)
+                      |> filter(fn: (r) => r._measurement == "backup_status" and r._field =~ /^streams_/)
+                      |> group(columns: ["_field"])
+                      |> last()
+                      |> map(fn: (r) => ({_time: r._time, stream: strings.trimPrefix(v: r._field, prefix: "streams_"), _value: if r._value == "crit" then 1.0 else 0.0}))
+                      |> group(columns: ["stream"])
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params: [0]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: OK
+            execErrState: Error
+            for: 24h
+            labels:
+              severity: critical
+            annotations:
+              summary: "Backups: the {{ $labels.stream }} stream has been critical for 24 hours"
+              report: "https://reports.i3sec.com.au/backups/"
+              next_step: "Open the Backups report: the red row names what is stale or missing. For qnap-snapshot, read /share/CACHEDEV1_DATA/.scripts/qnap-snapshot.log on the QNAP. For postgres, check the postgres-backup CronJob. For sealed-secrets, check the sealed-secrets-backup CronJob."
