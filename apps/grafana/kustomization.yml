@@ -8,6 +8,7 @@ namespace: monitoring
 # Argo apps don't fight over the same Namespace object.
 resources:
   - grafana-sealed-secret.yml
+  - grafana-telegram-sealed-secret.yml
   - grafana-pvc.yml
   - grafana-datasource-cm.yml
   - grafana-dashboard-provider-cm.yml

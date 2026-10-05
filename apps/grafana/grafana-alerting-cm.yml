@@ -416,3 +416,71 @@ data:
               summary: "{{ $labels.key }} is down or restarting repeatedly"
               description: >-
                 This container sent fewer than 8 of its usual ~17 metric points in the last 10 minutes, for 5+ minutes. It is not running, or is crash-looping. Check the pod (kubectl get pods, kubectl describe). The list of critical containers is in this rule query.
+  notifications.yml: |
+    # Added 2026-10-05. Alerts are delivered to a Telegram bot chat. The bot
+    # token and chat id come from the grafana-telegram Secret (sealed, loaded
+    # through envFrom in grafana-deployment.yml) and are interpolated here by
+    # Grafana's provisioning engine, the same way the datasource gets its
+    # InfluxDB token. Created with apps/grafana/seal_telegram.sh.
+    #
+    # Note the policy REPLACES the default routing tree, and it makes the
+    # previously silent rules (node load per core, iCloud migration) start
+    # sending messages too.
+    apiVersion: 1
+    contactPoints:
+      - orgId: 1
+        name: telegram
+        receivers:
+          - uid: telegram-alerts
+            type: telegram
+            settings:
+              bottoken: $TELEGRAM_BOT_TOKEN
+              chatid: "$TELEGRAM_CHAT_ID"
+            disableResolveMessage: false
+    policies:
+      - orgId: 1
+        receiver: telegram
+        group_by: ["alertname"]
+        group_wait: 30s
+        group_interval: 5m
+        # Warnings are a nudge, not a page: repeat once a day while they last.
+        repeat_interval: 24h
+        routes:
+          - receiver: telegram
+            object_matchers:
+              - ["severity", "=", "critical"]
+            # Critical: repeat every 4 hours until it clears.
+            repeat_interval: 4h
+  telegram-selftest.yml: |
+    # TEMPORARY: fires immediately so the whole path (Grafana -> Telegram ->
+    # phone) can be proven once. Remove after the first message arrives.
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: telegram-selftest
+        folder: Platform
+        interval: 1m
+        rules:
+          - uid: telegram-selftest
+            title: "Telegram self-test (temporary)"
+            condition: A
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: A
+                  type: math
+                  expression: "1 == 1"
+            noDataState: OK
+            execErrState: Error
+            for: 0s
+            labels:
+              severity: info
+            annotations:
+              summary: "Telegram self-test: if you can read this, alerts reach your phone"
+              description: >-
+                This is a one-off test alert from Grafana. It will be removed
+                right after it arrives.
