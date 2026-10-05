@@ -83,6 +83,13 @@ spec:
         envFrom:
         - secretRef:
             name: grafana-influxdb
+        # Telegram bot token and chat id for the alert contact point
+        # (grafana-alerting-cm.yml, notifications.yml). optional: true so
+        # Grafana still starts if the controller has not created the Secret
+        # yet; alerts then just cannot be delivered until it exists.
+        - secretRef:
+            name: grafana-telegram
+            optional: true
         env:
         - name: GF_SERVER_ROOT_URL
           value: https://grafana.i3sec.com.au
