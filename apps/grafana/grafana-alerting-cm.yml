@@ -171,3 +171,248 @@ data:
                 uninterruptible I/O wait (ps -eLo stat,wchan:32,comm | grep '^D'),
                 usually a hung NFS mount to the QNAP.
 
+  capacity-and-availability-alerts.yml: |
+    # Added 2026-10-05 after the Jellyfin outage (day2-services
+    # apps/jellyfin/POSTMORTEM-2026-10-04.md): a config volume sat at 76% of
+    # 8 GiB, Jellyfin refuses to start under 2 GiB free, and the first restart
+    # took it down. Nothing watched volume usage, and nothing noticed Jellyfin
+    # had been down for half an hour.
+    #
+    # Same convention as the other rules: no contact point is wired, so these
+    # show red on Grafana's Alerting page (https://grafana.i3sec.com.au/alerting/list)
+    # and nothing is sent anywhere. Volume stats come from Telegraf's
+    # kubernetes_pod_volume (enabled in apps/telegraf/conf/node.conf).
+    #
+    # Pod readiness is NOT available from this Telegraf input (no readiness or
+    # state tags), so "workload down" is a deadman: a critical container that
+    # reports under 8 of the ~17 points it normally sends in 10 minutes is down
+    # or flapping. Short-lived Job pods are excluded by listing the critical
+    # containers explicitly.
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: capacity-and-availability
+        folder: Platform
+        interval: 1m
+        rules:
+          - uid: volume-usage-warning
+            title: "Volume more than 70% full"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: |-
+                    from(bucket: "telegraf")
+                      |> range(start: -10m)
+                      |> filter(fn: (r) => r._measurement == "kubernetes_pod_volume" and (r._field == "used_bytes" or r._field == "capacity_bytes"))
+                      |> filter(fn: (r) => not (r.volume_name =~ /^kube-api-access/))
+                      |> group(columns: ["namespace", "volume_name", "host", "_field"])
+                      |> last()
+                      |> toFloat()
+                      |> group(columns: ["namespace", "volume_name", "host"])
+                      |> pivot(rowKey: ["_time", "namespace", "volume_name", "host"], columnKey: ["_field"], valueColumn: "_value")
+                      |> filter(fn: (r) => r.capacity_bytes > 1000000000.0)
+                      |> map(fn: (r) => ({_time: r._time, namespace: r.namespace, volume_name: r.volume_name, host: r.host, _value: r.used_bytes / r.capacity_bytes * 100.0}))
+                      |> group(columns: ["namespace", "volume_name", "host"])
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params: [70]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: NoData
+            execErrState: Error
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.namespace }}/{{ $labels.volume_name }} on {{ $labels.host }} is over 70% full"
+              description: >-
+                A pod volume has been above 70% used for 10+ minutes. Grow it or clear it before it reaches 85%. Includes the QNAP NFS share (volume name media) as seen by any pod that mounts it. Jellyfin config volume: Jellyfin will not start with less than 2 GiB free.
+          - uid: volume-usage-critical
+            title: "Volume more than 85% full"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: |-
+                    from(bucket: "telegraf")
+                      |> range(start: -10m)
+                      |> filter(fn: (r) => r._measurement == "kubernetes_pod_volume" and (r._field == "used_bytes" or r._field == "capacity_bytes"))
+                      |> filter(fn: (r) => not (r.volume_name =~ /^kube-api-access/))
+                      |> group(columns: ["namespace", "volume_name", "host", "_field"])
+                      |> last()
+                      |> toFloat()
+                      |> group(columns: ["namespace", "volume_name", "host"])
+                      |> pivot(rowKey: ["_time", "namespace", "volume_name", "host"], columnKey: ["_field"], valueColumn: "_value")
+                      |> filter(fn: (r) => r.capacity_bytes > 1000000000.0)
+                      |> map(fn: (r) => ({_time: r._time, namespace: r.namespace, volume_name: r.volume_name, host: r.host, _value: r.used_bytes / r.capacity_bytes * 100.0}))
+                      |> group(columns: ["namespace", "volume_name", "host"])
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params: [85]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: NoData
+            execErrState: Error
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "{{ $labels.namespace }}/{{ $labels.volume_name }} on {{ $labels.host }} is over 85% full"
+              description: >-
+                A pod volume has been above 85% used for 5+ minutes. Act now: grow the volume, or free space.
+          - uid: critical-workload-down
+            title: "Critical workload not running"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: |-
+                    import "array"
+
+                    expected = array.from(rows: [
+                      {key: "jellyfin/jellyfin", _value: 0},
+                      {key: "arr-stack/radarr", _value: 0},
+                      {key: "arr-stack/sonarr", _value: 0},
+                      {key: "arr-stack/prowlarr", _value: 0},
+                      {key: "arr-stack/sabnzbd", _value: 0},
+                      {key: "arr-stack/qbittorrent", _value: 0},
+                      {key: "arr-stack/gluetun", _value: 0},
+                      {key: "reports/reports", _value: 0},
+                      {key: "pihole/pihole", _value: 0},
+                      {key: "postgres/postgres", _value: 0},
+                      {key: "immich/immich-server", _value: 0},
+                      {key: "paperless/paperless", _value: 0},
+                      {key: "homeassistant/homeassistant", _value: 0},
+                      {key: "calibre-web/calibre-web", _value: 0},
+                      {key: "cloudflared/cloudflared", _value: 0},
+                      {key: "kube-system/traefik", _value: 0},
+                      {key: "kube-system/coredns", _value: 0},
+                      {key: "kube-system/sealed-secrets-controller", _value: 0},
+                    ])
+
+                    keys = expected |> findColumn(fn: (key) => true, column: "key")
+
+                    actual = from(bucket: "telegraf")
+                      |> range(start: -10m)
+                      |> filter(fn: (r) => r._measurement == "kubernetes_pod_container" and r._field == "memory_working_set_bytes")
+                      |> group(columns: ["namespace", "container_name"])
+                      |> count()
+                      |> map(fn: (r) => ({key: r.namespace + "/" + r.container_name, _value: r._value}))
+                      |> filter(fn: (r) => contains(value: r.key, set: keys))
+
+                    union(tables: [expected, actual])
+                      |> group(columns: ["key"])
+                      |> sum()
+                      |> map(fn: (r) => ({key: r.key, _time: now(), _value: r._value}))
+                      |> group(columns: ["key"])
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: lt
+                        params: [8]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: Alerting
+            execErrState: Error
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "{{ $labels.key }} is down or restarting repeatedly"
+              description: >-
+                This container sent fewer than 8 of its usual ~17 metric points in the last 10 minutes, for 5+ minutes. It is not running, or is crash-looping. Check the pod (kubectl get pods, kubectl describe). The list of critical containers is in this rule query.
