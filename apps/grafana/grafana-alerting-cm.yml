@@ -435,7 +435,14 @@ data:
             type: telegram
             settings:
               bottoken: $TELEGRAM_BOT_TOKEN
-              chatid: "$TELEGRAM_CHAT_ID"
+              # Literal on purpose. Interpolating the numeric id from an
+              # environment variable made Grafana read it as a NUMBER, and
+              # the telegram integration needs a string ("cannot unmarshal
+              # number into Config.chatid of type string"), which stopped
+              # Grafana starting at all (2026-10-05). A chat id is an
+              # identifier, not a credential: only the bot token (above,
+              # from the sealed secret) lets anyone send as the bot.
+              chatid: "8200910175"
             disableResolveMessage: false
     policies:
       - orgId: 1
