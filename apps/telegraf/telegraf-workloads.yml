@@ -52,7 +52,10 @@ spec:
               memory: "96Mi"
               cpu: "20m"
             limits:
-              memory: "192Mi"
+              # 256Mi since 2026-10-05 (was 192Mi): after kubernetes_pod_volume was
+              # enabled, the k8smaster pod (many pods and volumes) was OOMKilled three
+              # times at startup, then settled around 130Mi. The startup spike needs headroom.
+              memory: "256Mi"
           volumeMounts:
             - name: config
               mountPath: /etc/telegraf
