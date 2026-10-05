@@ -79,6 +79,8 @@ data:
             labels:
               severity: warning
             annotations:
+              report: "https://reports.i3sec.com.au/icloud-migration/"
+              next_step: "Open the iCloud report and the Grafana dashboard. Check the Paperless or Immich consumer for that category is running."
               summary: "{{ $labels.category }} hasn't moved in over 2 hours while marked in_progress"
               description: >-
                 percent_complete for category={{ $labels.category }} has had
@@ -164,6 +166,8 @@ data:
             labels:
               severity: warning
             annotations:
+              report: "https://grafana.i3sec.com.au/d/cluster-overview/cluster-overview"
+              next_step: "Look for a hung NFS mount to the QNAP: ps -eLo stat,wchan:32,comm | grep '^D'. Then check the QNAP is reachable."
               summary: "{{ $labels.host }} load per core is above 6"
               description: >-
                 {{ $labels.host }} has had more than 6 load-average units per
@@ -217,7 +221,7 @@ data:
                       |> group(columns: ["namespace", "volume_name", "host"])
                       |> pivot(rowKey: ["_time", "namespace", "volume_name", "host"], columnKey: ["_field"], valueColumn: "_value")
                       |> filter(fn: (r) => r.capacity_bytes > 1000000000.0)
-                      |> map(fn: (r) => ({_time: r._time, namespace: r.namespace, volume_name: r.volume_name, host: r.host, _value: r.used_bytes / r.capacity_bytes * 100.0}))
+                      |> map(fn: (r) => ({_time: r._time, namespace: if r.capacity_bytes > 1000000000000.0 then "qnap" else r.namespace, volume_name: if r.capacity_bytes > 1000000000000.0 then "media-share" else r.volume_name, host: if r.capacity_bytes > 1000000000000.0 then "all" else r.host, _value: r.used_bytes / r.capacity_bytes * 100.0}))
                       |> group(columns: ["namespace", "volume_name", "host"])
               - refId: B
                 relativeTimeRange:
@@ -257,6 +261,8 @@ data:
             labels:
               severity: warning
             annotations:
+              report: "https://grafana.i3sec.com.au/d/cluster-overview/cluster-overview"
+              next_step: "See the Pod volumes table on the dashboard. To grow a volume, raise its storage size in git and let ArgoCD apply it, as was done for jellyfin-config on 2026-10-04. The QNAP share shows as one NFS row."
               summary: "{{ $labels.namespace }}/{{ $labels.volume_name }} on {{ $labels.host }} is over 70% full"
               description: >-
                 A pod volume has been above 70% used for 10+ minutes. Grow it or clear it before it reaches 85%. Includes the QNAP NFS share (volume name media) as seen by any pod that mounts it. Jellyfin config volume: Jellyfin will not start with less than 2 GiB free.
@@ -282,7 +288,7 @@ data:
                       |> group(columns: ["namespace", "volume_name", "host"])
                       |> pivot(rowKey: ["_time", "namespace", "volume_name", "host"], columnKey: ["_field"], valueColumn: "_value")
                       |> filter(fn: (r) => r.capacity_bytes > 1000000000.0)
-                      |> map(fn: (r) => ({_time: r._time, namespace: r.namespace, volume_name: r.volume_name, host: r.host, _value: r.used_bytes / r.capacity_bytes * 100.0}))
+                      |> map(fn: (r) => ({_time: r._time, namespace: if r.capacity_bytes > 1000000000000.0 then "qnap" else r.namespace, volume_name: if r.capacity_bytes > 1000000000000.0 then "media-share" else r.volume_name, host: if r.capacity_bytes > 1000000000000.0 then "all" else r.host, _value: r.used_bytes / r.capacity_bytes * 100.0}))
                       |> group(columns: ["namespace", "volume_name", "host"])
               - refId: B
                 relativeTimeRange:
@@ -322,6 +328,8 @@ data:
             labels:
               severity: critical
             annotations:
+              report: "https://grafana.i3sec.com.au/d/cluster-overview/cluster-overview"
+              next_step: "Act now. See the Pod volumes table on the dashboard. To grow a volume, raise its storage size in git and let ArgoCD apply it. For the QNAP share, free space on the QNAP."
               summary: "{{ $labels.namespace }}/{{ $labels.volume_name }} on {{ $labels.host }} is over 85% full"
               description: >-
                 A pod volume has been above 85% used for 5+ minutes. Act now: grow the volume, or free space.
@@ -413,6 +421,8 @@ data:
             labels:
               severity: critical
             annotations:
+              report: "https://grafana.i3sec.com.au/d/cluster-overview/cluster-overview"
+              next_step: "Run: kubectl get pods -A | grep -v Running, and find the pod named in the alert. Pod CPU and memory are on the dashboard."
               summary: "{{ $labels.key }} is down or restarting repeatedly"
               description: >-
                 This container sent fewer than 8 of its usual ~17 metric points in the last 10 minutes, for 5+ minutes. It is not running, or is crash-looping. Check the pod (kubectl get pods, kubectl describe). The list of critical containers is in this rule query.
@@ -458,3 +468,443 @@ data:
               - ["severity", "=", "critical"]
             # Critical: repeat every 4 hours until it clears.
             repeat_interval: 4h
+  cluster-health-alerts.yml: |
+    # Added 2026-10-05. Certificates, ArgoCD, Longhorn and node disk, from data
+    # Telegraf already collects (the prometheus measurement and disk). Each rule
+    # has a "report" link (where to look) and a "next_step" in plain words; both
+    # appear in the Telegram message because Grafana prints every annotation.
+    #
+    # No-data is treated as OK on purpose: for the ArgoCD and Longhorn rules an
+    # empty result IS the healthy answer, and if Telegraf itself stops the
+    # critical-workload-down rule already reports it.
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: cluster-health
+        folder: Platform
+        interval: 1m
+        rules:
+          - uid: cert-expiring-warning
+            title: "Certificate expires in under 14 days"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: |-
+                    from(bucket: "telegraf")
+                      |> range(start: -15m)
+                      |> filter(fn: (r) => r._measurement == "prometheus" and r._field == "certmanager_certificate_expiration_timestamp_seconds")
+                      |> group(columns: ["namespace", "name"])
+                      |> last()
+                      |> map(fn: (r) => ({_time: r._time, namespace: r.namespace, name: r.name, _value: (float(v: r._value) - float(v: int(v: now())) / 1000000000.0) / 86400.0}))
+                      |> group(columns: ["namespace", "name"])
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: lt
+                        params: [14]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: OK
+            execErrState: Error
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in under 14 days"
+              report: "https://grafana.i3sec.com.au/d/cluster-overview/cluster-overview"
+              next_step: "cert-manager renews at 30 days left, so something is stuck. Look at Certificates on the dashboard, then run: kubectl -n {{ $labels.namespace }} describe certificate {{ $labels.name }}"
+          - uid: cert-expiring-critical
+            title: "Certificate expires in under 5 days"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: |-
+                    from(bucket: "telegraf")
+                      |> range(start: -15m)
+                      |> filter(fn: (r) => r._measurement == "prometheus" and r._field == "certmanager_certificate_expiration_timestamp_seconds")
+                      |> group(columns: ["namespace", "name"])
+                      |> last()
+                      |> map(fn: (r) => ({_time: r._time, namespace: r.namespace, name: r.name, _value: (float(v: r._value) - float(v: int(v: now())) / 1000000000.0) / 86400.0}))
+                      |> group(columns: ["namespace", "name"])
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: lt
+                        params: [5]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: OK
+            execErrState: Error
+            for: 10m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in under 5 days"
+              report: "https://grafana.i3sec.com.au/d/cluster-overview/cluster-overview"
+              next_step: "Act now or the site will show a certificate error. Run: kubectl -n {{ $labels.namespace }} describe certificate {{ $labels.name }} and look at the Events at the bottom."
+          - uid: argocd-app-unhealthy
+            title: "ArgoCD app unhealthy"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: |-
+                    from(bucket: "telegraf")
+                      |> range(start: -4m)
+                      |> filter(fn: (r) => r._measurement == "prometheus" and r._field == "argocd_app_info")
+                      |> filter(fn: (r) => r.health_status == "Degraded" or r.health_status == "Missing")
+                      |> group(columns: ["name", "health_status"])
+                      |> last()
+                      |> map(fn: (r) => ({_time: r._time, name: r.name, health_status: r.health_status, _value: float(v: r._value)}))
+                      |> group(columns: ["name", "health_status"])
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params: [0]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: OK
+            execErrState: Error
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "ArgoCD app {{ $labels.name }} is {{ $labels.health_status }}"
+              report: "https://argocd.i3sec.com.au/applications/argocd/{{ $labels.name }}"
+              next_step: "Open the ArgoCD link: the red or broken resource is shown in the app tree. Often a pod crash-looping or a missing volume."
+          - uid: argocd-app-out-of-sync
+            title: "ArgoCD app out of sync for an hour"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: |-
+                    from(bucket: "telegraf")
+                      |> range(start: -4m)
+                      |> filter(fn: (r) => r._measurement == "prometheus" and r._field == "argocd_app_info")
+                      |> filter(fn: (r) => r.sync_status == "OutOfSync")
+                      |> group(columns: ["name"])
+                      |> last()
+                      |> map(fn: (r) => ({_time: r._time, name: r.name, _value: float(v: r._value)}))
+                      |> group(columns: ["name"])
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params: [0]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: OK
+            execErrState: Error
+            for: 1h
+            labels:
+              severity: warning
+            annotations:
+              summary: "ArgoCD app {{ $labels.name }} has been out of sync for an hour"
+              report: "https://argocd.i3sec.com.au/applications/argocd/{{ $labels.name }}"
+              next_step: "Open the ArgoCD link and press Diff to see what differs from git. Sync it, or find what keeps reverting it."
+          - uid: longhorn-volume-degraded
+            title: "Longhorn volume degraded"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: |-
+                    from(bucket: "telegraf")
+                      |> range(start: -6m)
+                      |> filter(fn: (r) => r._measurement == "prometheus" and r._field == "longhorn_volume_robustness")
+                      |> group(columns: ["volume", "pvc", "pvc_namespace"])
+                      |> max()
+                      |> map(fn: (r) => ({_time: r._time, volume: r.volume, pvc: r.pvc, pvc_namespace: r.pvc_namespace, _value: float(v: r._value)}))
+                      |> group(columns: ["volume", "pvc", "pvc_namespace"])
+                      |> filter(fn: (r) => r._value == 2.0)
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params: [1]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: OK
+            execErrState: Error
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Longhorn volume {{ $labels.pvc_namespace }}/{{ $labels.pvc }} has lost a copy"
+              report: "https://grafana.i3sec.com.au/d/cluster-overview/cluster-overview"
+              next_step: "One of its two copies is missing. Longhorn rebuilds on its own; if it stays like this, check both nodes are up and have free disk (Longhorn node storage on the dashboard)."
+          - uid: longhorn-volume-faulted
+            title: "Longhorn volume faulted"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: |-
+                    from(bucket: "telegraf")
+                      |> range(start: -6m)
+                      |> filter(fn: (r) => r._measurement == "prometheus" and r._field == "longhorn_volume_robustness")
+                      |> group(columns: ["volume", "pvc", "pvc_namespace"])
+                      |> max()
+                      |> map(fn: (r) => ({_time: r._time, volume: r.volume, pvc: r.pvc, pvc_namespace: r.pvc_namespace, _value: float(v: r._value)}))
+                      |> group(columns: ["volume", "pvc", "pvc_namespace"])
+                      |> filter(fn: (r) => r._value == 3.0)
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params: [2]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: OK
+            execErrState: Error
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Longhorn volume {{ $labels.pvc_namespace }}/{{ $labels.pvc }} is faulted and cannot be used"
+              report: "https://grafana.i3sec.com.au/d/cluster-overview/cluster-overview"
+              next_step: "Both copies are bad. The app using it will be down. Do not delete anything: check Longhorn in kube-system logs and both nodes before acting."
+          - uid: node-disk-high
+            title: "Node disk over 85% full"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: |-
+                    from(bucket: "telegraf")
+                      |> range(start: -10m)
+                      |> filter(fn: (r) => r._measurement == "disk" and r._field == "used_percent" and r.path == "/")
+                      |> group(columns: ["host"])
+                      |> last()
+                      |> map(fn: (r) => ({_time: r._time, host: r.host, _value: float(v: r._value)}))
+                      |> group(columns: ["host"])
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params: [85]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: OK
+            execErrState: Error
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node {{ $labels.host }} disk is over 85% full"
+              report: "https://grafana.i3sec.com.au/d/cluster-overview/cluster-overview"
+              next_step: "See Root disk used % on the dashboard. Check what grew: container images, logs, or local volumes on that node."
