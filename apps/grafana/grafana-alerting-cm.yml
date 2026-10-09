@@ -437,6 +437,24 @@ data:
     # previously silent rules (node load per core, iCloud migration) start
     # sending messages too.
     apiVersion: 1
+    # Added 2026-10-10: the default Telegram message was a bare "Firing"
+    # heading with raw labels below. This prints severity, alert name,
+    # summary, next step and report link. Plain text on purpose (no
+    # parse mode), so a stray character cannot break delivery.
+    templates:
+      - orgId: 1
+        name: telegram_message
+        template: |
+          {{ define "tg.one" }}{{ if eq .Status "resolved" }}✅ RESOLVED{{ else if eq .Labels.severity "critical" }}🔴 CRITICAL{{ else }}🟠 WARNING{{ end }}: {{ .Labels.alertname }}
+          {{ if .Annotations.summary }}{{ .Annotations.summary }}{{ else if .Annotations.description }}{{ .Annotations.description }}{{ else }}No summary set on this rule.{{ end }}{{ if ne .Status "resolved" }}{{ if .Annotations.next_step }}
+
+          What to do: {{ .Annotations.next_step }}{{ end }}{{ end }}{{ if .Annotations.report }}
+
+          Report: {{ .Annotations.report }}{{ end }}{{ end }}
+          {{ define "tg.message" }}{{ range .Alerts }}{{ template "tg.one" . }}
+
+          {{ end }}{{ end }}
+
     contactPoints:
       - orgId: 1
         name: telegram
@@ -453,6 +471,7 @@ data:
               # identifier, not a credential: only the bot token (above,
               # from the sealed secret) lets anyone send as the bot.
               chatid: "8200910175"
+              message: '{{ template "tg.message" . }}'
             disableResolveMessage: false
     policies:
       - orgId: 1
