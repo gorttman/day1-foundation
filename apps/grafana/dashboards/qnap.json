@@ -545,8 +545,8 @@
     {
       "id": 9,
       "type": "timeseries",
-      "title": "Backup drive: used and free (TB)",
-      "description": "Watch this go down after the folder is deleted. Used in one line, free in the other.",
+      "title": "Backup drive used (%)",
+      "description": "The 20 TB USB backup drive. Orange at 85%, red at 90%. Two decimals so a small delete (for example 32 GB is about 0.15%) shows as a visible step.",
       "datasource": {
         "type": "influxdb",
         "uid": "influxdb-pilab"
@@ -558,12 +558,12 @@
             "type": "influxdb",
             "uid": "influxdb-pilab"
           },
-          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"qnap_fs\" and r.mount == \"backup\" and (r._field == \"used_b\" or r._field == \"free_b\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)\n  |> map(fn: (r) => ({_time: r._time, _value: float(v: r._value) / 1000000000000.0, _field: if r._field == \"used_b\" then \"used\" else \"free\"}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])"
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"qnap_fs\" and r.mount == \"backup\" and r._field == \"pct\")\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\"])"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "suffix: TB",
+          "unit": "percent",
           "color": {
             "mode": "palette-classic"
           },
@@ -573,9 +573,19 @@
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "orange",
+                "value": 85
+              },
+              {
+                "color": "red",
+                "value": 90
               }
             ]
           },
+          "min": 0,
+          "max": 100,
           "custom": {
             "lineWidth": 1,
             "fillOpacity": 8,
@@ -583,10 +593,10 @@
             "spanNulls": true,
             "drawStyle": "line",
             "thresholdsStyle": {
-              "mode": "off"
+              "mode": "line"
             }
           },
-          "decimals": 3
+          "decimals": 2
         },
         "overrides": []
       },
@@ -602,7 +612,6 @@
           "placement": "bottom",
           "calcs": [
             "last",
-            "min",
             "max"
           ]
         },
