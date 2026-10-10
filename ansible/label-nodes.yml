@@ -25,8 +25,9 @@
 # the controller side:
 #   sudo ansible-playbook ansible/label-nodes.yml
 #
-# k8smaster deliberately has no workload-affinity labels: it stays
-# lane=infrastructure only.
+# k8smaster carried no workload-affinity labels until 2026-10-10, when
+# jellyfin and postgres were given it as their preferred home (see the map
+# below). It is still lane=infrastructure.
 ---
 - name: Apply workload-affinity node labels
   hosts: localhost
@@ -76,8 +77,13 @@
       # calibre-web removed 2026-09-03 with the app itself. Note the known
       # gap above: this playbook only strips labels for apps still in the
       # map, so calibre-web's label had to be removed by hand.
+      # 2026-10-10: jellyfin and postgres moved to k8smaster, the cool node.
+      # pinode-01 (no fan) hit 85-88C and its Longhorn replicas failed; see
+      # the heat test dashboard. Both stay soft preferences.
       jellyfin:
-        primary: pinode-01
+        primary: k8smaster
+      postgres:
+        primary: k8smaster
       obsidian:
         primary: pinode-01
       vscode:
