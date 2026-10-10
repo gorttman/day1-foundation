@@ -445,12 +445,11 @@ data:
       - orgId: 1
         name: telegram_message
         template: |
-          {{ define "tg.one" }}{{ if eq .Status "resolved" }}✅ RESOLVED{{ else if eq .Labels.severity "critical" }}🔴 CRITICAL{{ else }}🟠 WARNING{{ end }}: {{ .Labels.alertname }}
-          {{ if .Annotations.summary }}{{ .Annotations.summary }}{{ else if .Annotations.description }}{{ .Annotations.description }}{{ else }}No summary set on this rule.{{ end }}{{ if ne .Status "resolved" }}{{ if .Annotations.next_step }}
+          {{ define "tg.one" }}{{ if eq .Status "resolved" }}✅ Resolved - {{ else if eq .Labels.severity "critical" }}🔴 {{ else }}🟠 {{ end }}{{ if .Annotations.summary }}{{ .Annotations.summary }}{{ else }}{{ .Labels.alertname }}{{ end }}{{ if ne .Status "resolved" }}{{ if .Annotations.next_step }}
 
-          What to do: {{ .Annotations.next_step }}{{ end }}{{ end }}{{ if .Annotations.report }}
+          What to do: {{ .Annotations.next_step }}{{ end }}{{ if .Annotations.report }}
 
-          Report: {{ .Annotations.report }}{{ end }}{{ end }}
+          Report: {{ .Annotations.report }}{{ end }}{{ end }}{{ end }}
           {{ define "tg.message" }}{{ range .Alerts }}{{ template "tg.one" . }}
 
           {{ end }}{{ end }}
