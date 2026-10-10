@@ -40,3 +40,12 @@ awk '/^md[0-9]+ :/ { a=$1 }
 ps 2>/dev/null | awk '
   NR>1 { if ($4 ~ /^D/) d++; if ($0 ~ /rsync -a/) r++; if ($0 ~ /qnap-snapshot.sh/ && $0 !~ /awk/) sn++ }
   END { printf "qnap_proc blocked=%di,rsync=%di,snapshot_jobs=%di\n", d, r, sn }'
+
+# CPU over a one-second window: two reads of /proc/stat, one second apart.
+# busy = everything except idle and iowait; iowait is shown separately because
+# on a NAS it is the number that says "waiting on the disks".
+cpu() { awk '/^cpu /{ print $2+$3+$4+$7+$8+$9, $6, $5 }' /proc/stat; }
+set -- $(cpu); b1=$1; w1=$2; i1=$3
+sleep 1
+set -- $(cpu); b2=$1; w2=$2; i2=$3
+awk -v b=$((b2-b1)) -v w=$((w2-w1)) -v i=$((i2-i1)) 'BEGIN { t=b+w+i; if (t>0) printf "qnap_cpu busy_pct=%.1f,iowait_pct=%.1f\n", b*100/t, w*100/t }'
