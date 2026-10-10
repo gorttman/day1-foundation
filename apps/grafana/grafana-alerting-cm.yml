@@ -358,9 +358,9 @@ data:
                       {key: "reports/reports", _value: 0},
                       {key: "pihole/pihole", _value: 0},
                       {key: "postgres/postgres", _value: 0},
-                      {key: "immich/immich-server", _value: 0},
-                      {key: "paperless/paperless", _value: 0},
-                      {key: "homeassistant/homeassistant", _value: 0},
+                      # immich-server, paperless and homeassistant are switched off
+                      # on purpose (2026-10-10, heat test). A deliberate stop is not
+                      # an alert. Add them back here when they are turned back on.
                       {key: "calibre-web/calibre-web", _value: 0},
                       {key: "cloudflared/cloudflared", _value: 0},
                       {key: "kube-system/traefik", _value: 0},
