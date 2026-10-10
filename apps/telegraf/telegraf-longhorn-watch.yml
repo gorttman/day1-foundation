@@ -1,0 +1,208 @@
+# Longhorn health recorder for the pinode-01 heat test (2026-10-10).
+#
+# Passive: one pass a minute, a handful of read-only Kubernetes API calls,
+# one small write to InfluxDB. It records
+#   longhorn_health  every minute: volumes not healthy, replicas not running or
+#                    flagged failed, node Ready, Longhorn instance-manager restarts
+#   longhorn_event   once per change: a replica newly failed, a node Ready flip,
+#                    an instance-manager restart, a volume leaving "healthy"
+# so the Hardware heat dashboard can lay failures over temperature. It uses
+# the existing write-only telegraf-influxdb token. It never changes anything.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: longhorn-watch
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: longhorn-watch
+    app.kubernetes.io/part-of: observability
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: longhorn-watch
+  labels:
+    app.kubernetes.io/name: longhorn-watch
+    app.kubernetes.io/part-of: observability
+rules:
+  - apiGroups: ["longhorn.io"]
+    resources: ["volumes", "replicas", "nodes"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["nodes", "pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: longhorn-watch
+  labels:
+    app.kubernetes.io/name: longhorn-watch
+    app.kubernetes.io/part-of: observability
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: longhorn-watch
+subjects:
+  - kind: ServiceAccount
+    name: longhorn-watch
+    namespace: monitoring
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: longhorn-watch-script
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: longhorn-watch
+    app.kubernetes.io/part-of: observability
+data:
+  watch.py: |
+    import json, os, ssl, time, urllib.request, urllib.error
+    SA = "/var/run/secrets/kubernetes.io/serviceaccount"
+    TOKEN = open(SA + "/token").read().strip()
+    CTX = ssl.create_default_context(cafile=SA + "/ca.crt")
+    INFLUX = "http://influxdb.monitoring.svc.cluster.local:8086/api/v2/write?org=pilab&bucket=telegraf&precision=s"
+    ITOKEN = os.environ["INFLUX_TOKEN"]
+    NODES = ("k8smaster", "pinode-01")
+
+    def api(path):
+        r = urllib.request.Request("https://kubernetes.default.svc" + path,
+                                   headers={"Authorization": "Bearer " + TOKEN})
+        with urllib.request.urlopen(r, context=CTX, timeout=20) as f:
+            return json.load(f)
+
+    def write(lines):
+        if not lines:
+            return
+        r = urllib.request.Request(INFLUX, data="\n".join(lines).encode(), method="POST",
+                                   headers={"Authorization": "Token " + ITOKEN})
+        try:
+            urllib.request.urlopen(r, timeout=15).read()
+        except Exception as e:
+            print("influx write failed:", e, flush=True)
+
+    def esc(s):
+        return str(s).replace("\\", "\\\\").replace('"', '\\"')
+
+    seen = set()
+    primed = False
+    while True:
+        now = int(time.time())
+        events = []
+
+        def event(kind, key, text):
+            k = (kind, key)
+            if k in seen:
+                return
+            seen.add(k)
+            if primed:
+                events.append((kind, text))
+
+        try:
+            vols = api("/apis/longhorn.io/v1beta2/namespaces/longhorn-system/volumes")["items"]
+            reps = api("/apis/longhorn.io/v1beta2/namespaces/longhorn-system/replicas")["items"]
+            nodes = api("/api/v1/nodes")["items"]
+            pods = api("/api/v1/namespaces/longhorn-system/pods")["items"]
+        except Exception as e:
+            print("api read failed:", e, flush=True)
+            time.sleep(60)
+            continue
+
+        unhealthy = 0
+        for v in vols:
+            st = v["status"]
+            name = v["status"].get("kubernetesStatus", {}).get("pvcName") or v["metadata"]["name"]
+            if st.get("state") == "attached" and st.get("robustness") != "healthy":
+                unhealthy += 1
+                event("volume", name + ":" + str(st.get("robustness")) + ":" + str(st.get("lastDegradedAt", "")),
+                      "volume %s is %s" % (name, st.get("robustness")))
+
+        not_running = flagged = 0
+        for r in reps:
+            if r["status"].get("currentState") not in ("running", "stopped"):
+                not_running += 1
+            if r["spec"].get("failedAt"):
+                flagged += 1
+                event("replica", r["metadata"]["name"] + r["spec"]["failedAt"],
+                      "replica on %s failed (volume %s)" % (r["spec"].get("nodeID"), r["spec"].get("volumeName")))
+
+        ready = {}
+        for n in nodes:
+            for c in n["status"]["conditions"]:
+                if c["type"] == "Ready":
+                    ready[n["metadata"]["name"]] = 1 if c["status"] == "True" else 0
+                    event("node", n["metadata"]["name"] + c["lastTransitionTime"],
+                          "node %s Ready=%s" % (n["metadata"]["name"], c["status"]))
+
+        restarts = {n: 0 for n in NODES}
+        for p in pods:
+            node = p["spec"].get("nodeName")
+            comp = p["metadata"].get("labels", {}).get("longhorn.io/component", "")
+            if node in restarts and comp in ("instance-manager",) or p["metadata"]["name"].startswith("longhorn-manager"):
+                for c in p["status"].get("containerStatuses", []):
+                    if node in restarts:
+                        restarts[node] += c["restartCount"]
+                    event("restart", p["metadata"]["name"] + str(c["restartCount"]),
+                          "%s restarted (count %s)" % (p["metadata"]["name"], c["restartCount"]))
+
+        fields = ["volumes_unhealthy=%di" % unhealthy, "replicas_not_running=%di" % not_running,
+                  "replicas_flagged_failed=%di" % flagged]
+        for n in NODES:
+            fields.append("ready_%s=%di" % (n.replace("-", "_"), ready.get(n, 0)))
+            fields.append("restarts_%s=%di" % (n.replace("-", "_"), restarts[n]))
+        lines = ["longhorn_health " + ",".join(fields) + " %d" % now]
+        for kind, text in events:
+            print(time.strftime("%F %T"), kind, text, flush=True)
+            lines.append('longhorn_event,kind=%s text="%s",n=1i %d' % (kind, esc(text), now))
+        write(lines)
+        primed = True
+        time.sleep(60)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: longhorn-watch
+  namespace: monitoring
+  labels:
+    app: longhorn-watch
+    app.kubernetes.io/name: longhorn-watch
+    app.kubernetes.io/part-of: observability
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: longhorn-watch
+  template:
+    metadata:
+      labels:
+        app: longhorn-watch
+        app.kubernetes.io/name: longhorn-watch
+    spec:
+      serviceAccountName: longhorn-watch
+      enableServiceLinks: false
+      # Land on k8smaster, the cool node: a recorder must not add heat or
+      # memory pressure to the node under test.
+      nodeSelector:
+        kubernetes.io/hostname: k8smaster
+      containers:
+        - name: watch
+          image: python:3.12-alpine
+          command: ["python3", "-u", "/scripts/watch.py"]
+          env:
+            - name: INFLUX_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: telegraf-influxdb
+                  key: INFLUX_TOKEN
+          resources:
+            requests: {memory: "32Mi", cpu: "5m"}
+            limits: {memory: "96Mi"}
+          volumeMounts:
+            - {name: scripts, mountPath: /scripts, readOnly: true}
+      volumes:
+        - name: scripts
+          configMap:
+            name: longhorn-watch-script

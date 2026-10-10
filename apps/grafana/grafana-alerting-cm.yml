@@ -926,6 +926,69 @@ data:
               summary: "Node {{ $labels.host }} disk is over 85% full"
               report: "https://grafana.i3sec.com.au/d/cluster-overview/cluster-overview"
               next_step: "See Root disk used % on the dashboard. Check what grew: container images, logs, or local volumes on that node."
+          - uid: node-cpu-hot
+            title: "Node CPU over 85C"
+            # Added 2026-10-10 for the pinode-01 heat test. The Pi 5 slows down
+            # from about 80C and harder at 85C; pinode-01 has no fan and its
+            # Longhorn replicas failed while it sat at 85-88C.
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: |-
+                    from(bucket: "telegraf")
+                      |> range(start: -10m)
+                      |> filter(fn: (r) => r._measurement == "temp" and r._field == "temp" and r.sensor == "cpu_thermal")
+                      |> group(columns: ["host"])
+                      |> last()
+                      |> map(fn: (r) => ({_time: r._time, host: r.host, _value: float(v: r._value)}))
+                      |> group(columns: ["host"])
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params: [85]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: OK
+            execErrState: Error
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.host }} CPU has been over 85C for 5 minutes (it slows down and storage can fail)"
+              report: "https://grafana.i3sec.com.au/d/heat-longhorn/hardware-heat-vs-longhorn-pinode-01-test"
+              next_step: "Open the heat dashboard: check the CPU clock and the blocked-process panel. Reduce what runs on that node, and add cooling if it is pinode-01 (it has no fan)."
   backup-alerts.yml: |
     # Added 2026-10-05. The backup report page (reports app) already colours each
     # stream good, warn or crit; Telegraf copies that verdict into InfluxDB every
