@@ -1085,7 +1085,7 @@
             "type": "influxdb",
             "uid": "influxdb-pilab"
           },
-          "query": "from(bucket: \"telegraf\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"qnap_smart\")\n  |> last()\n  |> pivot(rowKey: [\"disk\", \"model\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> group()\n  |> sort(columns: [\"disk\"])\n  |> keep(columns: [\"disk\", \"model\", \"failing_attrs\", \"reallocated\", \"pending\", \"uncorrectable\", \"crc_errors\", \"power_on_hours\", \"power_cycles\"])",
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"qnap_smart\")\n  |> last()\n  |> pivot(rowKey: [\"disk\", \"model\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> group()\n  |> sort(columns: [\"disk\"])\n  |> keep(columns: [\"disk\", \"model\", \"failing_attrs\", \"reallocated\", \"pending\", \"uncorrectable\", \"crc_errors\", \"power_on_hours\", \"power_cycles\", \"load_cycles\", \"head_hours\", \"cmd_timeouts\", \"reported_uncorrect\"])",
           "format": "table"
         }
       ],
@@ -1257,6 +1257,36 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "reported_uncorrect"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
           }
         ]
       },
@@ -1277,7 +1307,11 @@
               "uncorrectable": "Uncorrectable",
               "crc_errors": "Cable (CRC) errors",
               "power_on_hours": "Hours on",
-              "power_cycles": "Power cycles"
+              "power_cycles": "Power cycles",
+              "load_cycles": "Head parks (load cycles)",
+              "head_hours": "Head flying hours",
+              "cmd_timeouts": "Cmd timeouts",
+              "reported_uncorrect": "Reported uncorrectable"
             },
             "indexByName": {
               "disk": 0,
@@ -1288,7 +1322,11 @@
               "uncorrectable": 5,
               "crc_errors": 6,
               "power_on_hours": 7,
-              "power_cycles": 8
+              "power_cycles": 8,
+              "load_cycles": 9,
+              "head_hours": 10,
+              "cmd_timeouts": 11,
+              "reported_uncorrect": 12
             }
           }
         }
@@ -1298,6 +1336,298 @@
         "y": 40,
         "w": 24,
         "h": 8
+      }
+    },
+    {
+      "id": 101,
+      "type": "timeseries",
+      "title": "Surface problems per disk (should stay at 0)",
+      "description": "Reallocated + pending + uncorrectable sectors + cable (CRC) errors added together, one line per bay. Any rise above 0 means a disk is starting to fail or a cable is bad. Refreshed every 15 minutes.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"qnap_smart\" and (r._field == \"reallocated\" or r._field == \"pending\" or r._field == \"uncorrectable\" or r._field == \"crc_errors\"))\n  |> group(columns: [\"disk\", \"_time\"])\n  |> sum()\n  |> group(columns: [\"disk\"])\n  |> map(fn: (r) => ({_time: r._time, _value: float(v: r._value), _field: \"disk \" + r.disk}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "min": 0,
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": true,
+            "drawStyle": "line",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 102,
+      "type": "timeseries",
+      "title": "Command timeouts per disk (Seagates)",
+      "description": "The disk did not answer a command in time. Disks 3 and 4 each show 1 (decoded from the raw value, so treat as approximate). A rising line is the thing to watch. WD disk 1 does not report this.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"qnap_smart\" and r._field == \"cmd_timeouts\")\n  |> map(fn: (r) => ({_time: r._time, _value: float(v: r._value), _field: \"disk \" + r.disk}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 2
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "min": 0,
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": true,
+            "drawStyle": "line",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 48,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 103,
+      "type": "timeseries",
+      "title": "Data written per disk (MB/s, approx)",
+      "description": "Average write rate between SMART reads (every 15 min), from the disk's own lifetime counter, assuming 512-byte units. Shows how hard each disk is being written, for example during the mirrors. Seagates only.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"qnap_smart\" and r._field == \"lba_written\")\n  |> aggregateWindow(every: 15m, fn: last, createEmpty: false)\n  |> derivative(unit: 1s, nonNegative: true)\n  |> map(fn: (r) => ({_time: r._time, _value: r._value * 512.0 / 1000000.0, _field: \"disk \" + r.disk}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": true,
+            "drawStyle": "line",
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 56,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 104,
+      "type": "timeseries",
+      "title": "Data read per disk (MB/s, approx)",
+      "description": "Same, for reads. Approximate: the counter units are assumed, so compare disks with each other rather than trusting the absolute number.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"qnap_smart\" and r._field == \"lba_read\")\n  |> aggregateWindow(every: 15m, fn: last, createEmpty: false)\n  |> derivative(unit: 1s, nonNegative: true)\n  |> map(fn: (r) => ({_time: r._time, _value: r._value * 512.0 / 1000000.0, _field: \"disk \" + r.disk}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": true,
+            "drawStyle": "line",
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 56,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       }
     }
   ]

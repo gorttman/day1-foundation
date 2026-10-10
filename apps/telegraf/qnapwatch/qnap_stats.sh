@@ -67,14 +67,29 @@ if [ $((now - last)) -ge 900 ]; then
   while [ "$i" -le "${n:-0}" ]; do
     m=$(getsysinfo hdmodel "$i" 2>/dev/null | tr -d ' ')
     /sbin/get_hd_smartinfo -d "$i" 2>/dev/null | awk -v d="$i" -v m="$m" '
-      { id=$1; sub(/^0+/, "", id); raw=$3; st=$NF; if (st != "OK") bad++ }
+      { id=$1; sub(/^0+/, "", id); raw=$3; st=$NF; if (st != "OK") bad++; seen[id]=1 }
       id=="5"   { re=raw }
       id=="197" { pe=raw }
       id=="198" { un=raw }
       id=="199" { cr=raw }
       id=="9"   { x=raw+0; hrs=x-4294967296*int(x/4294967296) }
       id=="12"  { y=raw+0; pc=y-4294967296*int(y/4294967296) }
-      END { printf "qnap_smart,disk=%s,model=%s reallocated=%.0fi,pending=%.0fi,uncorrectable=%.0fi,crc_errors=%.0fi,power_on_hours=%.0fi,power_cycles=%.0fi,failing_attrs=%di\n", d, m, re, pe, un, cr, hrs, pc, bad }'
+      id=="193" { lc=raw }
+      id=="187" { ru=raw }
+      id=="188" { z=raw+0; to=z-65536*int(z/65536) }
+      id=="240" { h=raw+0; hh=h-4294967296*int(h/4294967296) }
+      id=="241" { lw=raw }
+      id=="242" { lr=raw }
+      END {
+        s = sprintf("qnap_smart,disk=%s,model=%s reallocated=%.0fi,pending=%.0fi,uncorrectable=%.0fi,crc_errors=%.0fi,power_on_hours=%.0fi,power_cycles=%.0fi,failing_attrs=%di", d, m, re, pe, un, cr, hrs, pc, bad)
+        if ("193" in seen) s = s sprintf(",load_cycles=%.0fi", lc)
+        if ("187" in seen) s = s sprintf(",reported_uncorrect=%.0fi", ru)
+        if ("188" in seen) s = s sprintf(",cmd_timeouts=%.0fi", to)
+        if ("240" in seen) s = s sprintf(",head_hours=%.0fi", hh)
+        if ("241" in seen) s = s sprintf(",lba_written=%.0fi", lw)
+        if ("242" in seen) s = s sprintf(",lba_read=%.0fi", lr)
+        print s
+      }'
     i=$((i+1))
   done
 fi
