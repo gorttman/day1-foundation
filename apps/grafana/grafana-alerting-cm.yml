@@ -989,6 +989,69 @@ data:
               summary: "{{ $labels.host }} CPU has been over 85C for 5 minutes (it slows down and storage can fail)"
               report: "https://grafana.i3sec.com.au/d/heat-longhorn/hardware-heat-vs-longhorn-pinode-01-test"
               next_step: "Open the heat dashboard: check the CPU clock and the blocked-process panel. Reduce what runs on that node, and add cooling if it is pinode-01 (it has no fan)."
+          - uid: node-io-stall
+            title: "Node processes stuck on disk"
+            # Added 2026-10-10. The stall detector for the k8smaster "NFS wedge"
+            # and the pinode-01 Longhorn faults: many processes blocked in disk
+            # wait at once. It read 200+ when the Longhorn replicas failed.
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: |-
+                    from(bucket: "telegraf")
+                      |> range(start: -10m)
+                      |> filter(fn: (r) => r._measurement == "processes" and r._field == "blocked")
+                      |> group(columns: ["host"])
+                      |> last()
+                      |> map(fn: (r) => ({_time: r._time, host: r.host, _value: float(v: r._value)}))
+                      |> group(columns: ["host"])
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params: [50]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: OK
+            execErrState: Error
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.host }} has had over 50 processes stuck waiting on disk for 5 minutes (storage or NFS stalled)"
+              report: "https://grafana.i3sec.com.au/d/heat-longhorn/hardware-heat-vs-longhorn-pinode-01-test"
+              next_step: "Open the dashboard and look at the NFS panels (retransmits, reconnects, QNAP port 2049) and the Longhorn events, to see whether the QNAP, the network or the node itself stalled. Do not reboot first: the evidence is on the dashboard now."
   backup-alerts.yml: |
     # Added 2026-10-05. The backup report page (reports app) already colours each
     # stream good, warn or crit; Telegraf copies that verdict into InfluxDB every

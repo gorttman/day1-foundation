@@ -6,7 +6,7 @@
     "longhorn",
     "hardware"
   ],
-  "description": "Week-long passive test started 2026-10-10: is pinode-01 overheating (no fan) and is that what breaks its Longhorn volumes? Verdict due 2026-10-17.",
+  "description": "Week-long passive test started 2026-10-10: is pinode-01 overheating (no fan) and is that what breaks its Longhorn volumes? Verdict due 2026-10-17. Lower rows (added 2026-10-10): NFS client statistics and QNAP reachability, to find out what a k8smaster NFS wedge looks like while it is happening.",
   "timezone": "Australia/Sydney",
   "schemaVersion": 41,
   "refresh": "1m",
@@ -463,6 +463,286 @@
         "w": 24,
         "x": 0,
         "y": 30
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "NFS to the QNAP: retransmits and timeouts per minute",
+      "description": "Client-side counters from the node. Rising while tasks are stuck = network or QNAP not answering. Flat while tasks are stuck = the client itself.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"nfs_mountstats\" and (r._field == \"retrans\" or r._field == \"timeouts\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)\n  |> derivative(unit: 1m, nonNegative: true)\n  |> map(fn: (r) => ({r with _field: r.host + \" \" + r._field}))\n  |> group(columns: [\"_field\"])\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": true,
+            "drawStyle": "bars"
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 39
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "NFS to the QNAP: TCP reconnects per minute",
+      "description": "The client re-making its connection to the QNAP. Frequent reconnects = the session keeps dropping.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"nfs_mountstats\" and (r._field == \"connects\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)\n  |> derivative(unit: 1m, nonNegative: true)\n  |> map(fn: (r) => ({r with _field: r.host + \" \" + r._field}))\n  |> group(columns: [\"_field\"])\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": true,
+            "drawStyle": "bars"
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 39
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "NFS request time (ms per request, wire + queued)",
+      "description": "Time per NFS request, including time waiting in the client. Jumps before a wedge.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"nfs_mountstats\" and (r._field == \"ops\" or r._field == \"rtt_ms\" or r._field == \"queue_ms\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)\n  |> derivative(unit: 1m, nonNegative: true)\n  |> group(columns: [\"host\"])\n  |> pivot(rowKey: [\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> filter(fn: (r) => r.ops > 0.0)\n  |> map(fn: (r) => ({_time: r._time, _value: r.rtt_ms / r.ops + r.queue_ms / r.ops, _field: r.host + \" wire+queued\"}))\n  |> group(columns: [\"_field\"])\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "min": 0,
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": true,
+            "drawStyle": "line"
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 46
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "QNAP port 2049 (NFS): TCP connect time from each node",
+      "description": "If this is fast while processes are stuck, the QNAP is reachable and the problem is not the network path. A gap = unreachable.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"net_response\" and r.server == \"192.168.20.30\" and r._field == \"response_time\")\n  |> aggregateWindow(every: v.windowPeriod, fn: max, createEmpty: false)\n  |> map(fn: (r) => ({r with _value: r._value * 1000.0, _field: r.host + \" connect ms\"}))\n  |> group(columns: [\"_field\"])\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "min": 0,
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": true,
+            "drawStyle": "line"
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 46
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "NFS requests waiting to send (client backlog)",
+      "description": "Requests queued in the client. Climbing while the QNAP answers fast = a client-side stall.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"nfs_mountstats\" and r._field == \"backlog\")\n  |> aggregateWindow(every: v.windowPeriod, fn: max, createEmpty: false)\n  |> map(fn: (r) => ({r with _field: r.host + \" backlog\"}))\n  |> group(columns: [\"_field\"])\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": true,
+            "drawStyle": "line"
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 53
       }
     }
   ]
