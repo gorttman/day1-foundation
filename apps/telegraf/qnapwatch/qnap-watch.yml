@@ -1,0 +1,69 @@
+# QNAP watcher (added 2026-10-11). Once a minute, one SSH call to the QNAP runs
+# its forced command (qnap_stats.sh: df, /proc, getsysinfo - no disk walks) and
+# the result goes to InfluxDB as qnap_* measurements, plus qnap_watch up=1/0 so
+# "the QNAP cannot be reached" is itself a signal. The key is a restricted one
+# (can run only that script); install with qnapwatch/install_qnapwatch.sh.
+# Pinned to k8smaster so a recorder adds nothing to the node under heat test.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qnap-watch
+  namespace: monitoring
+  labels:
+    app: qnap-watch
+    app.kubernetes.io/name: qnap-watch
+    app.kubernetes.io/part-of: observability
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: qnap-watch
+  template:
+    metadata:
+      labels:
+        app: qnap-watch
+        app.kubernetes.io/name: qnap-watch
+    spec:
+      enableServiceLinks: false
+      nodeSelector:
+        kubernetes.io/hostname: k8smaster
+      containers:
+        - name: watch
+          image: alpine:3.20
+          command:
+            - sh
+            - -c
+            - |
+              until apk add --no-cache openssh-client-default curl >/dev/null 2>&1; do
+                echo "apk add failed, retrying in 15s"; sleep 15
+              done
+              URL="http://influxdb.monitoring.svc.cluster.local:8086/api/v2/write?org=pilab&bucket=telegraf&precision=s"
+              post() { curl -s -m 15 -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Token $INFLUX_TOKEN" --data-binary @- "$URL"; }
+              while :; do
+                if out=$(timeout 30 ssh -i /key/id -o BatchMode=yes -o UserKnownHostsFile=/key/known_hosts -o StrictHostKeyChecking=yes -o ConnectTimeout=10 admin@192.168.20.30 stats 2>/dev/null) && [ -n "$out" ]; then
+                  code=$(printf '%s\nqnap_watch up=1i\n' "$out" | post)
+                else
+                  code=$(echo 'qnap_watch up=0i' | post)
+                  echo "ssh to the QNAP failed"
+                fi
+                [ "$code" = "204" ] || echo "influx write returned $code"
+                sleep 60
+              done
+          env:
+            - name: INFLUX_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: telegraf-influxdb
+                  key: INFLUX_TOKEN
+          resources:
+            requests: {memory: "16Mi", cpu: "5m"}
+            limits: {memory: "64Mi"}
+          volumeMounts:
+            - {name: key, mountPath: /key, readOnly: true}
+      volumes:
+        - name: key
+          secret:
+            secretName: qnap-watch-key
+            defaultMode: 0400

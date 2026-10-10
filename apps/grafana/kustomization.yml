@@ -30,6 +30,7 @@ configMapGenerator:
       - dashboards/cluster-overview.json
       - dashboards/ai-platform.json
       - dashboards/pinode-heat.json
+      - dashboards/qnap.json
     options:
       labels:
         app: grafana

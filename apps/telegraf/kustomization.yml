@@ -10,6 +10,8 @@ resources:
   - telegraf-rbac.yml
   - telegraf-workloads.yml
   - telegraf-longhorn-watch.yml
+  - qnapwatch/qnap-watch-sealed-secret.yml
+  - qnapwatch/qnap-watch.yml
 
 # Default name-hash suffix stays ON: editing a .conf changes the ConfigMap name,
 # which changes the pod specs and rolls them. Telegraf only reads its config at
