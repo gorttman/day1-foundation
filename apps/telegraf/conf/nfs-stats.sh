@@ -4,6 +4,9 @@
 # has no NFS mounts, so it returns nothing here). Added 2026-10-10 to find
 # out what happens during a k8smaster "NFS wedge": counters are cumulative,
 # so graph them as a rate.
+# Runs in the nfs-stats sidecar (root, sees ONLY the host's /proc/1/mountstats
+# through a single-file hostPath) because telegraf itself is not root and the
+# file is unreadable to it. The sidecar writes /out/nfs.lp; telegraf reads it.
 #   timeouts / retrans   climbing = network or server not answering
 #   connects             climbing = the TCP session keeps being re-made
 #   backlog              requests waiting to be sent (client-side queue)
@@ -40,4 +43,4 @@ END {
         printf "nfs_mountstats,server=%s ops=%.0fi,retrans=%.0fi,timeouts=%.0fi,queue_ms=%.0fi,rtt_ms=%.0fi,exec_ms=%.0fi,connects=%.0fi,sends=%.0fi,backlog=%.0fi,pending=%.0fi\n",
             d, mx_ops[d], retrans, mx_to[d], mx_q[d], mx_r[d], mx_e[d], connects[d], sends[d], backlog[d], pending[d]
     }
-}' "${HOST_PROC:-/proc}/1/mountstats"
+}' "${MOUNTSTATS:-/proc/1/mountstats}"

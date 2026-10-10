@@ -63,7 +63,42 @@ spec:
             - name: hostfs
               mountPath: /hostfs
               readOnly: true
+            - name: nfs-out
+              mountPath: /out
+              readOnly: true
+        # Root helper that sees ONE host file only (/proc/1/mountstats) and
+        # writes NFS client counters for telegraf to read. See conf/nfs-stats.sh.
+        - name: nfs-stats
+          image: busybox:1.36
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - 'while true; do MOUNTSTATS=/host/mountstats sh /etc/telegraf/nfs-stats.sh > /out/nfs.lp.tmp && mv /out/nfs.lp.tmp /out/nfs.lp; sleep 30; done'
+          resources:
+            requests:
+              memory: "8Mi"
+              cpu: "2m"
+            limits:
+              memory: "32Mi"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/telegraf
+              readOnly: true
+            - name: nfs-out
+              mountPath: /out
+            - name: host-mountstats
+              mountPath: /host/mountstats
+              readOnly: true
       volumes:
+        - name: nfs-out
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Mi
+        - name: host-mountstats
+          hostPath:
+            path: /proc/1/mountstats
+            type: File
         - name: config
           configMap:
             name: telegraf-config
