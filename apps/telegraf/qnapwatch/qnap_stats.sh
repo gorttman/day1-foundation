@@ -49,3 +49,32 @@ set -- $(cpu); b1=$1; w1=$2; i1=$3
 sleep 1
 set -- $(cpu); b2=$1; w2=$2; i2=$3
 awk -v b=$((b2-b1)) -v w=$((w2-w1)) -v i=$((i2-i1)) 'BEGIN { t=b+w+i; if (t>0) printf "qnap_cpu busy_pct=%.1f,iowait_pct=%.1f\n", b*100/t, w*100/t }'
+
+# SMART health per bay, refreshed every 15 minutes (not every run: it asks each
+# disk, and the QNAP is already busy). Points are written only on a refresh, so
+# the newest SMART point is never older than ~15 min while the watcher is up.
+# Attribute ids are matched as text with leading zeros stripped: this BusyBox
+# awk reads 011 as octal. Power-on hours on Seagates carries extra bits in the high half of the raw
+# value, so only the low 32 bits are used. The USB backup drive is not a SATA
+# bay, so this tool cannot read it.
+SC=/tmp/.qnapwatch_smart_stamp
+now=$(date +%s)
+last=$(cat "$SC" 2>/dev/null || echo 0)
+if [ $((now - last)) -ge 900 ]; then
+  echo "$now" > "$SC"
+  n=$(getsysinfo hdnum 2>/dev/null | awk '{print $1+0}')
+  i=1
+  while [ "$i" -le "${n:-0}" ]; do
+    m=$(getsysinfo hdmodel "$i" 2>/dev/null | tr -d ' ')
+    /sbin/get_hd_smartinfo -d "$i" 2>/dev/null | awk -v d="$i" -v m="$m" '
+      { id=$1; sub(/^0+/, "", id); raw=$3; st=$NF; if (st != "OK") bad++ }
+      id=="5"   { re=raw }
+      id=="197" { pe=raw }
+      id=="198" { un=raw }
+      id=="199" { cr=raw }
+      id=="9"   { x=raw+0; hrs=x-4294967296*int(x/4294967296) }
+      id=="12"  { y=raw+0; pc=y-4294967296*int(y/4294967296) }
+      END { printf "qnap_smart,disk=%s,model=%s reallocated=%.0fi,pending=%.0fi,uncorrectable=%.0fi,crc_errors=%.0fi,power_on_hours=%.0fi,power_cycles=%.0fi,failing_attrs=%di\n", d, m, re, pe, un, cr, hrs, pc, bad }'
+    i=$((i+1))
+  done
+fi

@@ -1068,6 +1068,237 @@
           "sort": "desc"
         }
       }
+    },
+    {
+      "id": 100,
+      "type": "table",
+      "title": "Disk health (SMART) - six RAID bays",
+      "description": "From each disk's own SMART data, refreshed every 15 minutes. Any red cell is worth attention: reallocated, pending or uncorrectable sectors mean the surface is failing; cable errors usually mean a bad cable or slot. The USB backup drive is not a SATA bay, so QNAP cannot report SMART for it.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-pilab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-pilab"
+          },
+          "query": "from(bucket: \"telegraf\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"qnap_smart\")\n  |> last()\n  |> pivot(rowKey: [\"disk\", \"model\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> group()\n  |> sort(columns: [\"disk\"])\n  |> keep(columns: [\"disk\", \"model\", \"failing_attrs\", \"reallocated\", \"pending\", \"uncorrectable\", \"crc_errors\", \"power_on_hours\", \"power_cycles\"])",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "failing_attrs"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "reallocated"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pending"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "uncorrectable"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "crc_errors"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "disk": "Bay",
+              "model": "Model",
+              "failing_attrs": "SMART failing",
+              "reallocated": "Reallocated sectors",
+              "pending": "Pending sectors",
+              "uncorrectable": "Uncorrectable",
+              "crc_errors": "Cable (CRC) errors",
+              "power_on_hours": "Hours on",
+              "power_cycles": "Power cycles"
+            },
+            "indexByName": {
+              "disk": 0,
+              "model": 1,
+              "failing_attrs": 2,
+              "reallocated": 3,
+              "pending": 4,
+              "uncorrectable": 5,
+              "crc_errors": 6,
+              "power_on_hours": 7,
+              "power_cycles": 8
+            }
+          }
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 24,
+        "h": 8
+      }
     }
   ]
 }
