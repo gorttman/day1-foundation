@@ -24,6 +24,7 @@ configMapGenerator:
   - name: telegraf-config
     files:
       - conf/node.conf
+      - conf/nfs-stats.sh
       - conf/platform.conf
       - conf/ai.conf
     options:
