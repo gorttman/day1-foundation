@@ -348,7 +348,7 @@ data:
                     import "array"
 
                     expected = array.from(rows: [
-                      # JELLYFIN-ALERT-OFF: jellyfin is stopped on purpose (2026-10-11); jellyfin_resume.sh puts the next line back
+                      {key: "jellyfin/jellyfin", _value: 0},
                       {key: "arr-stack/radarr", _value: 0},
                       {key: "arr-stack/sonarr", _value: 0},
                       {key: "arr-stack/prowlarr", _value: 0},
