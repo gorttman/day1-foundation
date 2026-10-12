@@ -134,6 +134,14 @@ variable "tunneled_hostnames" {
     "open-webui.i3sec.com.au" = {
       origin = "http://open-webui.open-webui.svc.cluster.local:80"
     }
+    # Added 2026-10-13 for off-LAN Music Assistant (web UI only; the Cast/AirPlay
+    # speakers stay LAN-side and pull audio straight from the node on :8097).
+    # Traefik-class ingress like grafana/immich, so the origin is the ClusterIP
+    # Service. Same zone-wide mTLS WAF gate as everything else; MA keeps its own
+    # login on top. On-LAN, Pi-hole/CoreDNS still resolve it to the Traefik VIP.
+    "music.i3sec.com.au" = {
+      origin = "http://music-assistant.music-assistant.svc.cluster.local:8095"
+    }
   }
 }
 
