@@ -80,8 +80,13 @@
       # 2026-10-10: jellyfin and postgres moved to k8smaster, the cool node.
       # pinode-01 (no fan) hit 85-88C and its Longhorn replicas failed; see
       # the heat test dashboard. Both stay soft preferences.
+      # 2026-10-12: jellyfin moved back to pinode-01 (secondary k8smaster) so
+      # k8smaster can be rebooted/maintained with Jellyfin still up. Heat on
+      # pinode-01 is unresolved until the fan is fitted (verdict 2026-10-17):
+      # watch its temperature when Jellyfin transcodes.
       jellyfin:
-        primary: k8smaster
+        primary: pinode-01
+        secondary: k8smaster
       postgres:
         primary: k8smaster
       obsidian:
