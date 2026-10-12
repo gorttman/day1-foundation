@@ -546,7 +546,7 @@
       "id": 9,
       "type": "timeseries",
       "title": "Backup drive used (%)",
-      "description": "The 20 TB USB backup drive. Orange at 85%, red at 90%. Two decimals so a small delete (for example 32 GB is about 0.15%) shows as a visible step.",
+      "description": "The 20 TB USB backup drive. Axis runs 50 to 100% so small changes show. Orange at 85%, red at 90%. One decimal on both used-% panels; a small delete (for example 32 GB is about 0.15%) shows as a visible step.",
       "datasource": {
         "type": "influxdb",
         "uid": "influxdb-pilab"
@@ -584,7 +584,7 @@
               }
             ]
           },
-          "min": 0,
+          "min": 50,
           "max": 100,
           "custom": {
             "lineWidth": 1,
@@ -596,7 +596,7 @@
               "mode": "line"
             }
           },
-          "decimals": 2
+          "decimals": 1
         },
         "overrides": []
       },
@@ -625,7 +625,7 @@
       "id": 10,
       "type": "timeseries",
       "title": "Main data volume used (%)",
-      "description": "Live media/photos/books volume.",
+      "description": "Live media/photos/books volume. Axis runs 50 to 100% so small changes show.",
       "datasource": {
         "type": "influxdb",
         "uid": "influxdb-pilab"
@@ -663,7 +663,7 @@
               }
             ]
           },
-          "min": 0,
+          "min": 50,
           "max": 100,
           "custom": {
             "lineWidth": 1,
@@ -674,7 +674,8 @@
             "thresholdsStyle": {
               "mode": "line"
             }
-          }
+          },
+          "decimals": 1
         },
         "overrides": []
       },
