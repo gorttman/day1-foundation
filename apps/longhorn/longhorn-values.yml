@@ -97,8 +97,18 @@ longhornDriver:
 # rather than its own LoadBalancer IP - MetalLB's pools are being
 # reworked separately and a new VIP here would just be another thing to
 # move.
+#
+# Switched on 2026-10-16. Internal-only: no Cloudflare Tunnel annotation,
+# DNS in dns-conf (-> the Traefik VIP). The Longhorn UI has NO login of its
+# own, so never publish it through the tunnel.
 ingress:
-  enabled: false
+  enabled: true
+  ingressClassName: traefik
+  host: longhorn.i3sec.com.au
+  tls: true
+  tlsSecret: longhorn-tls
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
 
 # csi.kubeletRootDir deliberately unset: verified live 2026-08-30 that
 # this k3s uses the default /var/lib/kubelet (no
