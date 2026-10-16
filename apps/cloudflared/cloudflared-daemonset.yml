@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: DaemonSet
 metadata:
   name: cloudflared
   namespace: cloudflared
@@ -10,10 +10,17 @@ metadata:
     app.kubernetes.io/part-of: day1-foundation
     argocd.argoproj.io/managed-by: argocd
 spec:
-  # 2 replicas per Cloudflare's guidance; each holds its own set of
-  # connections to the edge. Spread across nodes (no storage, tiny image,
-  # so the pinode tmpfs constraint doesn't apply).
-  replicas: 2
+  # One per node (was a 2-replica Deployment with a soft spread that let
+  # both land on k8smaster - found 2026-10-16, so a master outage took
+  # both tunnel connections down). Cloudflare's guidance is "at least 2";
+  # each copy holds its own set of connections to the edge. A DaemonSet
+  # gives exactly one per node, follows a new node automatically, and
+  # leaves no Pending pod behind when a node is down. No storage, tiny
+  # image.
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: cloudflared
@@ -24,13 +31,6 @@ spec:
         app.kubernetes.io/name: cloudflared
         app.kubernetes.io/component: tunnel
     spec:
-      topologySpreadConstraints:
-      - maxSkew: 1
-        topologyKey: kubernetes.io/hostname
-        whenUnsatisfiable: ScheduleAnyway
-        labelSelector:
-          matchLabels:
-            app: cloudflared
       enableServiceLinks: false
       containers:
       - name: cloudflared

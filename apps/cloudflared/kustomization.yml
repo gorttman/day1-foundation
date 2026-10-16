@@ -10,9 +10,9 @@ commonLabels:
 resources:
   - cloudflared-namespace.yml
   - cloudflared-sealedsecret.yml
-  - cloudflared-deployment.yml
+  - cloudflared-daemonset.yml
 
 # Resource ordering via sync-waves in annotations:
 # Wave 0: Namespace
 # Wave 1: SealedSecret
-# Wave 2: Deployment
+# Wave 2: DaemonSet
