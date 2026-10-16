@@ -1134,3 +1134,137 @@ data:
               summary: "Backups: the {{ $labels.stream }} stream has been critical for 24 hours"
               report: "https://reports.i3sec.com.au/backups/"
               next_step: "Open the Backups report: the red row names what is stale or missing. For qnap-snapshot, read /share/CACHEDEV1_DATA/.scripts/qnap-snapshot.log on the QNAP. For postgres, check the postgres-backup CronJob. For sealed-secrets, check the sealed-secrets-backup CronJob."
+  media-alerts.yml: |
+    # Added 2026-10-17 after Radarr OOM-crash-looped 122 times in 35 hours with
+    # nothing alerting. Data: movie-status /api/alerts, scraped by Telegraf every
+    # 5 minutes (apps/telegraf/conf/platform.conf).
+    #
+    # Restarts: one message per day at most (repeat is 24h for warnings), never
+    # one per restart. A handful of restarts a day is a deploy or a VPN peer
+    # rotation and is normal; more than 5 means something is crash-looping.
+    #
+    # Stuck downloads: movie-status records when it first saw each stuck item.
+    # The threshold is 6 hours. Items the Clear button handles vanish within 30
+    # minutes, so anything older means queue-clear is failing or the item needs
+    # a person.
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: media
+        folder: Platform
+        interval: 5m
+        rules:
+          - uid: media-stack-restarts
+            title: "arr-stack restarting repeatedly"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: |-
+                    from(bucket: "telegraf")
+                      |> range(start: -30m)
+                      |> filter(fn: (r) => r._measurement == "media_pipeline" and r._field == "restarts24h")
+                      |> last()
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params: [5]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: OK
+            execErrState: Error
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "arr-stack has restarted more than 5 times in 24 hours"
+              report: "https://movie-status.i3sec.com.au/"
+              next_step: "Open the status board, then run: kubectl -n arr-stack get pods and describe the arr-stack pod. Last State: OOMKilled means a container hit its memory limit; look at which one. Pod replaced often means the VPN healer is rotating the peer (git log shows arr-stack: vpn-healer auto-rotated)."
+          - uid: media-download-stuck
+            title: "Download stuck for hours"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: |-
+                    from(bucket: "telegraf")
+                      |> range(start: -30m)
+                      |> filter(fn: (r) => r._measurement == "media_pipeline" and r._field == "stuckOldestHours")
+                      |> last()
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params: [6]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: OK
+            execErrState: Error
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "A download has been stuck for more than 6 hours"
+              report: "https://movie-status.i3sec.com.au/"
+              next_step: "Open the status board: Needs you lists what only a person can fix (usually a manual import in Radarr or Sonarr Activity, Queue). Or use the media-queue-fix skill. If the list is empty, check the queue-clear CronJob in arr-stack."
