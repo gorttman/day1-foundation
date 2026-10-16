@@ -69,8 +69,6 @@ variable "tunneled_hostnames" {
     "radarr.i3sec.com.au"        = {}
     "prowlarr.i3sec.com.au"      = {}
     "sabnzbd.i3sec.com.au"       = {}
-    "bazarr.i3sec.com.au"        = {}
-    "jdownloader.i3sec.com.au"   = {}
     "lazylibrarian.i3sec.com.au" = {}
     # whisparr added 2026-09-03. It joined arr-stack on 2026-08-27, after
     # the 2026-07-21 pass above, and was missed by both halves of the
