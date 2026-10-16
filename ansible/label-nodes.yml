@@ -52,8 +52,12 @@
     workload_affinity:
       immich:
         primary: pinode-01
+      # 2026-10-17: live also carries paperless secondary=k8smaster (set by hand
+      # 2026-10-12 so paperless can fail over while pinode-01 is busy); declared
+      # here so the playbook does not strip it.
       paperless:
         primary: pinode-01
+        secondary: k8smaster
       nextcloud:
         primary: pinode-01
       # Added 2026-08-17 alongside removing the matching stale hard
