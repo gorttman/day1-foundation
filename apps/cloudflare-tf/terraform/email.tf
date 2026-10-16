@@ -8,8 +8,10 @@
 # DNS, not guessed) is Google Workspace's aspmx.l.google.com (10) /
 # alt1.aspmx.l.google.com (20) - switching to Fastmail's in1-smtp/in2-smtp
 # is the actual point-of-no-return cutover step and goes in on its own,
-# once mail import + parallel testing (see day2-services migration plan)
-# is done. This file only adds records that are safe to have live before
+# once mail import + parallel testing is done. The full cutover plan,
+# current live records, and the unmanaged-MX trap are documented in
+# ../FASTMAIL-CUTOVER.md - read that before touching MX.
+# This file only adds records that are safe to have live before
 # that: DKIM (unused until Fastmail is actually sending, harmless either
 # way) and SPF/DMARC in monitor-safe form.
 
