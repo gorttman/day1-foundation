@@ -1,0 +1,227 @@
+{
+  "uid": "cluster-logs",
+  "title": "Cluster logs",
+  "tags": [
+    "platform",
+    "logs"
+  ],
+  "timezone": "Australia/Sydney",
+  "schemaVersion": 41,
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "node",
+        "label": "Node",
+        "type": "query",
+        "datasource": {
+          "type": "loki",
+          "uid": "loki-pilab"
+        },
+        "query": {
+          "type": 1,
+          "label": "node",
+          "stream": ""
+        },
+        "definition": "label_values(node)",
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "refresh": 2
+      },
+      {
+        "name": "namespace",
+        "label": "Namespace",
+        "type": "query",
+        "datasource": {
+          "type": "loki",
+          "uid": "loki-pilab"
+        },
+        "query": {
+          "type": 1,
+          "label": "namespace",
+          "stream": ""
+        },
+        "definition": "label_values(namespace)",
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "refresh": 2
+      },
+      {
+        "name": "app",
+        "label": "App",
+        "type": "query",
+        "datasource": {
+          "type": "loki",
+          "uid": "loki-pilab"
+        },
+        "query": {
+          "type": 1,
+          "label": "app",
+          "stream": ""
+        },
+        "definition": "label_values(app)",
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "refresh": 2
+      },
+      {
+        "name": "search",
+        "label": "Search text",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Log volume by namespace",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki-pilab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (namespace) (count_over_time({cluster=\"pilab\", node=~\"$node\", namespace=~\"$namespace\", app=~\"$app\"} [$__interval]))",
+          "legendFormat": "{{namespace}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "Errors by app",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki-pilab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (app) (count_over_time({cluster=\"pilab\", node=~\"$node\", namespace=~\"$namespace\", app=~\"$app\"} |~ \"(?i)(error|fatal|panic|exception)\" [$__interval]))",
+          "legendFormat": "{{app}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "title": "Logs (container and host) - type text in 'Search text' to filter",
+      "type": "logs",
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 24,
+        "h": 16
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki-pilab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{cluster=\"pilab\", node=~\"$node\", namespace=~\"$namespace\", app=~\"$app\"} |~ \"(?i)$search\"",
+          "legendFormat": "",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Host (journald) logs",
+      "type": "logs",
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 10
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki-pilab"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{cluster=\"pilab\", signal_type=\"host\", node=~\"$node\"} |~ \"(?i)$search\"",
+          "legendFormat": "",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      }
+    }
+  ]
+}

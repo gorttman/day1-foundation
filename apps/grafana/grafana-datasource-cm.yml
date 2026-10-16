@@ -29,3 +29,17 @@ data:
           tlsSkipVerify: false
         secureJsonData:
           token: $INFLUXDB_TOKEN
+  # Loki (cluster and host logs), added 2026-10-17. Fluent Bit ships container
+  # logs and each node's systemd journal there; chunks live in Garage (S3) on
+  # the QNAP. Internal ClusterIP only. See day2-services apps/loki/README.md.
+  loki.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        uid: loki-pilab
+        type: loki
+        access: proxy
+        url: http://loki.loki.svc.cluster.local:3100
+        isDefault: false
+        jsonData:
+          maxLines: 2000
