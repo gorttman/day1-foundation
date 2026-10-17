@@ -1,0 +1,470 @@
+{
+ "uid": "arr-stack-logs",
+ "title": "Arr stack logs",
+ "tags": [
+  "platform",
+  "logs",
+  "arr-stack"
+ ],
+ "timezone": "Australia/Sydney",
+ "schemaVersion": 41,
+ "time": {
+  "from": "now-6h",
+  "to": "now"
+ },
+ "refresh": "1m",
+ "editable": true,
+ "panels": [
+  {
+   "id": 1,
+   "title": "Errors (last hour)",
+   "type": "stat",
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "datasource": {
+    "type": "loki",
+    "uid": "loki-pilab"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(count_over_time({namespace=\"arr-stack\"} | container=~\"$container\" |~ \"(?i)\\\\[error\\\\]|\\\\[fatal\\\\]|exception|\\\\berror\\\\b|failed\" [1h]))",
+     "queryType": "instant"
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "none"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 1
+       },
+       {
+        "color": "red",
+        "value": 10
+       }
+      ]
+     },
+     "noValue": "0"
+    },
+    "overrides": []
+   },
+   "description": "Lines matching error/exception/failed in the selected containers"
+  },
+  {
+   "id": 2,
+   "title": "Radarr start-ups (24h)",
+   "type": "stat",
+   "gridPos": {
+    "x": 4,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "datasource": {
+    "type": "loki",
+    "uid": "loki-pilab"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(count_over_time({namespace=\"arr-stack\"} | container=\"radarr\" |~ \"Starting Radarr|Bootstrap\" [24h]))",
+     "queryType": "instant"
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "none"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 1
+       },
+       {
+        "color": "red",
+        "value": 10
+       }
+      ]
+     },
+     "noValue": "0"
+    },
+    "overrides": []
+   },
+   "description": "Each start-up means Radarr restarted (OOM, pod restart). Should be ~1 a day at most."
+  },
+  {
+   "id": 3,
+   "title": "Import failures (24h)",
+   "type": "stat",
+   "gridPos": {
+    "x": 8,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "datasource": {
+    "type": "loki",
+    "uid": "loki-pilab"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(count_over_time({namespace=\"arr-stack\"} | container=~\"radarr|sonarr|whisparr\" |~ \"Import failed|Unable to import|not accessible\" [24h]))",
+     "queryType": "instant"
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "none"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 1
+       },
+       {
+        "color": "red",
+        "value": 10
+       }
+      ]
+     },
+     "noValue": "0"
+    },
+    "overrides": []
+   },
+   "description": "Radarr/Sonarr/Whisparr failing to file a finished download"
+  },
+  {
+   "id": 4,
+   "title": "VPN health-check failures (1h)",
+   "type": "stat",
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "datasource": {
+    "type": "loki",
+    "uid": "loki-pilab"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(count_over_time({namespace=\"arr-stack\"} | container=\"gluetun\" |~ \"(?i)healthcheck|unhealthy\" [1h]))",
+     "queryType": "instant"
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "none"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 1
+       },
+       {
+        "color": "red",
+        "value": 10
+       }
+      ]
+     },
+     "noValue": "0"
+    },
+    "overrides": []
+   },
+   "description": "gluetun reporting the tunnel failed its health check"
+  },
+  {
+   "id": 5,
+   "title": "Log volume by container",
+   "type": "timeseries",
+   "gridPos": {
+    "x": 0,
+    "y": 4,
+    "w": 12,
+    "h": 7
+   },
+   "datasource": {
+    "type": "loki",
+    "uid": "loki-pilab"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (container) (count_over_time({namespace=\"arr-stack\"} | container=~\"$container\" [$__interval]))",
+     "legendFormat": "{{container}}",
+     "queryType": "range"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "bars",
+      "stacking": {
+       "mode": "normal"
+      },
+      "fillOpacity": 60
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 6,
+   "title": "Errors by container",
+   "type": "timeseries",
+   "gridPos": {
+    "x": 12,
+    "y": 4,
+    "w": 12,
+    "h": 7
+   },
+   "datasource": {
+    "type": "loki",
+    "uid": "loki-pilab"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (container) (count_over_time({namespace=\"arr-stack\"} | container=~\"$container\" |~ \"(?i)\\\\[error\\\\]|\\\\[fatal\\\\]|exception|\\\\berror\\\\b|failed\" [$__interval]))",
+     "legendFormat": "{{container}}",
+     "queryType": "range"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "bars",
+      "stacking": {
+       "mode": "normal"
+      },
+      "fillOpacity": 60
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 7,
+   "title": "VPN (gluetun) events",
+   "type": "logs",
+   "gridPos": {
+    "x": 0,
+    "y": 11,
+    "w": 12,
+    "h": 9
+   },
+   "datasource": {
+    "type": "loki",
+    "uid": "loki-pilab"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "{namespace=\"arr-stack\"} | container=\"gluetun\" |~ \"(?i)healthcheck|restart|wireguard|ip rule|public ip|error|vpn is|port forward\"",
+     "queryType": "range"
+    }
+   ],
+   "options": {
+    "showTime": true,
+    "wrapLogMessage": true,
+    "enableLogDetails": true,
+    "sortOrder": "Descending",
+    "dedupStrategy": "none"
+   },
+   "description": "Tunnel health, restarts and peer changes. A rotation applied in place shows 'stopping' / 'starting' here without a pod restart."
+  },
+  {
+   "id": 8,
+   "title": "Import and download problems",
+   "type": "logs",
+   "gridPos": {
+    "x": 12,
+    "y": 11,
+    "w": 12,
+    "h": 9
+   },
+   "datasource": {
+    "type": "loki",
+    "uid": "loki-pilab"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "{namespace=\"arr-stack\"} | container=~\"radarr|sonarr|whisparr|sabnzbd|qbittorrent|lazylibrarian\" |~ \"(?i)import failed|unable to import|not accessible|unpack|par2|repair failed|disk full|no space|stalled\" != \"Auto-import\"",
+     "queryType": "range"
+    }
+   ],
+   "options": {
+    "showTime": true,
+    "wrapLogMessage": true,
+    "enableLogDetails": true,
+    "sortOrder": "Descending",
+    "dedupStrategy": "none"
+   }
+  },
+  {
+   "id": 9,
+   "title": "Housekeeping jobs (healer, genre filter, queue clear, stall watch, movie-status)",
+   "type": "logs",
+   "gridPos": {
+    "x": 0,
+    "y": 20,
+    "w": 24,
+    "h": 8
+   },
+   "datasource": {
+    "type": "loki",
+    "uid": "loki-pilab"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "{namespace=\"arr-stack\"} | pod!~\"arr-stack-.*\"",
+     "queryType": "range"
+    }
+   ],
+   "options": {
+    "showTime": true,
+    "wrapLogMessage": true,
+    "enableLogDetails": true,
+    "sortOrder": "Descending",
+    "dedupStrategy": "none"
+   },
+   "description": "Everything in the namespace that is not the main pod"
+  },
+  {
+   "id": 10,
+   "title": "All arr-stack logs - use Container and Search text above to narrow",
+   "type": "logs",
+   "gridPos": {
+    "x": 0,
+    "y": 28,
+    "w": 24,
+    "h": 14
+   },
+   "datasource": {
+    "type": "loki",
+    "uid": "loki-pilab"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "{namespace=\"arr-stack\"} | container=~\"$container\" |~ \"(?i)$search\"",
+     "queryType": "range"
+    }
+   ],
+   "options": {
+    "showTime": true,
+    "wrapLogMessage": true,
+    "enableLogDetails": true,
+    "sortOrder": "Descending",
+    "dedupStrategy": "none"
+   }
+  }
+ ],
+ "links": [
+  {
+   "title": "Media status board",
+   "type": "link",
+   "url": "https://movie-status.i3sec.com.au/",
+   "icon": "external link",
+   "targetBlank": true
+  },
+  {
+   "title": "Cluster logs",
+   "type": "link",
+   "url": "/d/cluster-logs",
+   "icon": "doc"
+  }
+ ],
+ "templating": {
+  "list": [
+   {
+    "name": "container",
+    "label": "Container",
+    "type": "custom",
+    "includeAll": true,
+    "allValue": ".+",
+    "multi": true,
+    "query": "gluetun,sonarr,radarr,prowlarr,sabnzbd,qbittorrent,whisparr,lazylibrarian,arr-wiring-reconciler",
+    "options": [],
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    }
+   },
+   {
+    "name": "search",
+    "label": "Search text",
+    "type": "textbox",
+    "query": "",
+    "current": {
+     "text": "",
+     "value": ""
+    }
+   }
+  ]
+ }
+}
