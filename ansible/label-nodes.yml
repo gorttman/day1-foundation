@@ -41,14 +41,17 @@
     cluster_nodes:
       - k8smaster
       - pinode-01
+      - pinode-02
     # Coarse role split. k8smaster is infrastructure-only and never
     # carries workload-affinity labels.
     node_lanes:
       k8smaster: infrastructure
       pinode-01: applications
-    # app name -> preferred home. All primaries sit on pinode-01 while it
-    # is the only applications node; that is expected. Add `secondary:` to
-    # an app when a second applications node exists.
+      # pinode-02 joined 2026-10-15; lane=applications was set by hand, declared 2026-10-18.
+      pinode-02: applications
+    # app name -> preferred home. All primaries sit on pinode-01; pinode-02 is
+    # a second applications node with no affinity labels yet. Add `secondary:`
+    # (or move a primary) here when an app should prefer it.
     workload_affinity:
       immich:
         primary: pinode-01
