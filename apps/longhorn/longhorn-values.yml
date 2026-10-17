@@ -43,11 +43,21 @@ persistence:
   defaultDataLocality: best-effort
 
 defaultSettings:
-  # 2 nodes today, third arrives ~2026-09-06 -> raise to 3 then. At 2
-  # replicas a node loss keeps data intact but volumes run DEGRADED,
-  # because there is nowhere to rebuild the missing replica until the
-  # node returns. At 3 it self-heals instead.
+  # Three schedulable nodes since 2026-10-18 (pinode-02 enabled). Two
+  # replicas on three nodes already self-heals: a node loss rebuilds the
+  # missing replica on the third node, so 3 copies are not needed (and
+  # would cost another ~130 GB per node). Existing volumes keep their
+  # count; this only sets the default.
   defaultReplicaCount: 2
+
+  # Spread replicas onto a newly schedulable node instead of leaving it
+  # empty. Set live on 2026-10-18 when pinode-02 was enabled (it settled
+  # at 5 of 46 replicas); defaultSettings only apply at install, so the
+  # running value is the Longhorn setting replica-auto-balance. pinode-02
+  # itself was enabled with: kubectl -n longhorn-system patch
+  # nodes.longhorn.io pinode-02 --type merge -p
+  # '{"spec":{"allowScheduling":true}}'
+  replicaAutoBalance: least-effort
 
   # NVMe on both nodes (k8smaster 343G free, pinode-01 426G free), so the
   # usual "etcd/Longhorn is slow on a Pi's SD card" objection does not
