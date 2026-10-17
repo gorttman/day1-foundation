@@ -30,10 +30,9 @@ resources:
   # the nfs-client StorageClass any more - every PVC is longhorn or
   # qnap-static.
   # - nfs-provisioner/nfs-provisioner-app.yml
-  # syslog-server disabled 2026-09-03: nothing consumes it yet. Its PVC is
-  # already on Longhorn, so re-enabling is just uncommenting this line.
-  # - syslog-server/syslog-server-app.yml
-  - log-archiver/log-archiver-app.yml
+  # syslog-server and log-archiver removed 2026-10-18: replaced by Loki + Garage
+  # + Alloy (day2-services apps/loki, garage, alloy). Recover from git history
+  # (before this commit) if ever needed. Archived logs on the QNAP were not touched.
   - metallb/metallb-app.yml
   - metallb/metallb-config-app.yml
   - qnap-storage/qnap-storage-app.yml
