@@ -1521,6 +1521,66 @@ data:
               summary: "No UDM syslog for 30 minutes"
               description: >-
                 Nothing has arrived from the UDM at 192.168.20.231:514 for 30+ minutes. The UDM normally sends several hundred lines a minute. The remote-syslog setting may have been reset, or the Alloy receiver or its address is down.
+          - uid: logs-qnap-silent
+            title: "QNAP log shipper silent"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 1800
+                  to: 0
+                datasourceUid: loki-pilab
+                model:
+                  refId: A
+                  datasource:
+                    type: loki
+                    uid: loki-pilab
+                  expr: 'sum(count_over_time({app="qnap-log-shipper"}[30m]))'
+                  queryType: instant
+                  editorMode: code
+              - refId: B
+                relativeTimeRange:
+                  from: 1800
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 1800
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: lt
+                        params: [1]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: Alerting
+            execErrState: Alerting
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              report: "https://grafana.i3sec.com.au/d/cluster-logs/cluster-logs"
+              next_step: "On the QNAP: crontab -l | grep log-shipper, then run /share/CACHEDEV1_DATA/.scripts/qnap-log-shipper.sh by hand. Then kubectl get svc alloy-syslog -n alloy (port 5514/udp). Re-push with: ansible-playbook qnap-manage.yml --tags manage_qnap_log_shipper,manage_qnap_cron"
+              summary: "No QNAP shipper heartbeat for 30 minutes"
+              description: >-
+                The QNAP log shipper sends an alive line every 10 minutes and none has arrived for 30+ minutes. Its cron entry may be gone (a QTS firmware update can reset the live crontab), the script may be broken, or the Alloy QNAP receiver (192.168.20.231:5514/udp) is down. Until it is fixed, QNAP script logs (snapshots, stream watcher) are not reaching Loki.
           - uid: logs-loki-storage-errors
             title: "Loki storage errors"
             condition: C
