@@ -1640,6 +1640,9 @@ data:
               summary: "No QNAP health sample for 10 minutes"
               description: >-
                 The QNAP log shipper sends a health line (uptime, load, memory, NFS server counters) every minute and none has arrived for 10+ minutes. The QNAP may be down or rebooting, its cron entry may be gone (a QTS firmware update can reset the live crontab), the script may be broken, or the Alloy QNAP receiver (192.168.20.231:5514/udp) is down. Until it is fixed, QNAP script logs, kernel and NFS server evidence are not reaching Loki.
+          # 2026-10-19: matches the parsed level label, not the text 'level=error'. The
+          # old text match also counted Loki's own info lines that quote this very query
+          # (it contains 'level=error' and 's3'), so the rule fired permanently.
           - uid: logs-loki-storage-errors
             title: "Loki storage errors"
             condition: C
@@ -1654,7 +1657,7 @@ data:
                   datasource:
                     type: loki
                     uid: loki-pilab
-                  expr: 'sum(count_over_time({namespace="loki"} |~ "level=error" |~ "(?i)(flush|s3|garage|objstore|NoSuchBucket)" [10m]))'
+                  expr: 'sum(count_over_time({namespace="loki"} | logfmt | level="error" |~ "(?i)(flush|s3|garage|objstore|NoSuchBucket)" [10m]))'
                   queryType: instant
                   editorMode: code
               - refId: B
