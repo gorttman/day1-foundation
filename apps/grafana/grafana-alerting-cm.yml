@@ -1643,3 +1643,130 @@ data:
                 InfluxDB (bucket log_rollup) for 4+ hours, or wrote zero
                 points. The long-term log summaries have a gap until it runs
                 again. It can backfill: python3 log_rollup.py --hours N.
+  infra-drift-alerts.yml: |
+    # Added 2026-10-18. A nightly read-only plan of the Cloudflare and UniFi
+    # Terraform stacks (systemd timer infra-drift-check on k8smaster, installed by
+    # day0-infra-build/infra-drift-check.yml) writes measurement infra_drift.
+    # drifted = resources whose plan is not empty and not on the known-benign list.
+    # check_ok = 0 when the check itself failed. Nothing here ever applies a change.
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: infra-drift
+        folder: Platform
+        interval: 30m
+        rules:
+          - uid: infra-drift
+            title: "Infrastructure drift"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: |-
+                    from(bucket: "telegraf")
+                      |> range(start: -36h)
+                      |> filter(fn: (r) => r._measurement == "infra_drift" and r._field == "drifted")
+                      |> group()
+                      |> last()
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params: [0]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: OK
+            execErrState: Error
+            for: 0s
+            labels:
+              severity: warning
+            annotations:
+              summary: "Cloudflare or UniFi no longer matches git"
+              next_step: "Use the infra-apply skill: run the plan-only play for the stack, read what differs, and decide whether git or the live system is right. Run sudo /usr/local/sbin/infra-drift-check on k8smaster to see which stack."
+          - uid: infra-drift-check-stale
+            title: "Infrastructure drift check not running"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: |-
+                    from(bucket: "telegraf")
+                      |> range(start: -36h)
+                      |> filter(fn: (r) => r._measurement == "infra_drift" and r._field == "check_ok")
+                      |> group()
+                      |> min()
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: lt
+                        params: [1]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: Alerting
+            execErrState: Alerting
+            for: 0s
+            labels:
+              severity: warning
+            annotations:
+              summary: "The nightly infra drift check has not reported for 36 hours, or failed"
+              next_step: "On k8smaster: systemctl status infra-drift-check.service and journalctl -u infra-drift-check -n 50. The check is read-only, so running sudo /usr/local/sbin/infra-drift-check by hand is safe."
