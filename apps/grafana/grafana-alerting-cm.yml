@@ -1269,3 +1269,315 @@ data:
               summary: "A download has been stuck for more than 6 hours"
               report: "https://movie-status.i3sec.com.au/"
               next_step: "Open the status board: Needs you lists what only a person can fix (usually a manual import in Radarr or Sonarr Activity, Queue). Or use the media-queue-fix skill. If the list is empty, check the queue-clear CronJob in arr-stack."
+  logging-alerts.yml: |
+    # Added 2026-10-18 for the Loki/Garage/Alloy logging stack. These watch the
+    # pipeline itself. A missing-logs rule fires on no data or a query error, so
+    # a Loki outage trips all of them, which is intended. UDM syslog is UDP:
+    # anything sent while Loki is down is lost, not queued.
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: logging-pipeline
+        folder: Platform
+        interval: 1m
+        rules:
+          - uid: logs-missing-k8smaster
+            title: "Logs missing: k8smaster"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: loki-pilab
+                model:
+                  refId: A
+                  datasource:
+                    type: loki
+                    uid: loki-pilab
+                  expr: 'sum(count_over_time({signal_type="host", node="k8smaster"}[10m]))'
+                  queryType: instant
+                  editorMode: code
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: lt
+                        params: [1]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: Alerting
+            execErrState: Alerting
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              report: "https://grafana.i3sec.com.au/d/cluster-logs/cluster-logs"
+              next_step: "kubectl get pods -n alloy -o wide; kubectl get pods -n loki. If only one node is quiet, check Alloy on it; if all three are, check loki-0 and garage-0."
+              summary: "No host logs from k8smaster for 10 minutes"
+              description: >-
+                Loki has received no journald logs from k8smaster for 10+ minutes. Either Alloy on that node is not running or not shipping, the node is down, or Loki or its storage is unreachable (in which case the other nodes alert too).
+          - uid: logs-missing-pinode-01
+            title: "Logs missing: pinode-01"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: loki-pilab
+                model:
+                  refId: A
+                  datasource:
+                    type: loki
+                    uid: loki-pilab
+                  expr: 'sum(count_over_time({signal_type="host", node="pinode-01"}[10m]))'
+                  queryType: instant
+                  editorMode: code
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: lt
+                        params: [1]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: Alerting
+            execErrState: Alerting
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              report: "https://grafana.i3sec.com.au/d/cluster-logs/cluster-logs"
+              next_step: "kubectl get pods -n alloy -o wide; kubectl get pods -n loki. If only one node is quiet, check Alloy on it; if all three are, check loki-0 and garage-0."
+              summary: "No host logs from pinode-01 for 10 minutes"
+              description: >-
+                Loki has received no journald logs from pinode-01 for 10+ minutes. Either Alloy on that node is not running or not shipping, the node is down, or Loki or its storage is unreachable (in which case the other nodes alert too).
+          - uid: logs-missing-pinode-02
+            title: "Logs missing: pinode-02"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: loki-pilab
+                model:
+                  refId: A
+                  datasource:
+                    type: loki
+                    uid: loki-pilab
+                  expr: 'sum(count_over_time({signal_type="host", node="pinode-02"}[10m]))'
+                  queryType: instant
+                  editorMode: code
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: lt
+                        params: [1]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: Alerting
+            execErrState: Alerting
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              report: "https://grafana.i3sec.com.au/d/cluster-logs/cluster-logs"
+              next_step: "kubectl get pods -n alloy -o wide; kubectl get pods -n loki. If only one node is quiet, check Alloy on it; if all three are, check loki-0 and garage-0."
+              summary: "No host logs from pinode-02 for 10 minutes"
+              description: >-
+                Loki has received no journald logs from pinode-02 for 10+ minutes. Either Alloy on that node is not running or not shipping, the node is down, or Loki or its storage is unreachable (in which case the other nodes alert too).
+          - uid: logs-udm-silent
+            title: "UDM syslog silent"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 1800
+                  to: 0
+                datasourceUid: loki-pilab
+                model:
+                  refId: A
+                  datasource:
+                    type: loki
+                    uid: loki-pilab
+                  expr: 'sum(count_over_time({app="udm"}[30m]))'
+                  queryType: instant
+                  editorMode: code
+              - refId: B
+                relativeTimeRange:
+                  from: 1800
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 1800
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: lt
+                        params: [1]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: Alerting
+            execErrState: Alerting
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              report: "https://grafana.i3sec.com.au/d/cluster-logs/cluster-logs"
+              next_step: "kubectl get svc alloy-syslog -n alloy (needs 192.168.20.231). Then check the UDM remote syslog setting (unifi-tf syslog.tf) and Alloy pod logs."
+              summary: "No UDM syslog for 30 minutes"
+              description: >-
+                Nothing has arrived from the UDM at 192.168.20.231:514 for 30+ minutes. The UDM normally sends several hundred lines a minute. The remote-syslog setting may have been reset, or the Alloy receiver or its address is down.
+          - uid: logs-loki-storage-errors
+            title: "Loki storage errors"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: loki-pilab
+                model:
+                  refId: A
+                  datasource:
+                    type: loki
+                    uid: loki-pilab
+                  expr: 'sum(count_over_time({namespace="loki"} |~ "level=error" |~ "(?i)(flush|s3|garage|objstore|NoSuchBucket)" [10m]))'
+                  queryType: instant
+                  editorMode: code
+              - refId: B
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params: [5]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: OK
+            execErrState: Alerting
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              report: "https://grafana.i3sec.com.au/d/cluster-logs/cluster-logs"
+              next_step: "kubectl logs -n loki loki-0 --tail=50; kubectl get pods -n loki garage-0; check the QNAP /cold share is mounted and has space."
+              summary: "Loki is logging storage errors"
+              description: >-
+                Loki has logged more than 5 flush or object-store errors in 10 minutes. Garage or its QNAP /cold data directory may be unavailable or full, so new chunks are not being saved.
