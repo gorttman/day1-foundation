@@ -12,4 +12,4 @@
 Creates the `infra` namespace. Applied first by the root `apps/kustomization.yml` as a raw manifest (not wrapped in an ArgoCD Application), so the namespace exists before any app in it tries to sync.
 
 ## Notes
-If you remove this, dhcpd, pxe-http, and nfs-server will fail to sync because `namespace: infra` won't exist. Keep it at the top of `apps/kustomization.yml`.
+Nothing deploys into `infra` at the moment (dhcpd, pxe-http and nfs-server, which did, were retired 2026-10-19 - see ../../RETIRED-APPS.md). The namespace is kept in case something infra-tier needs it again; it is safe to remove together with this app if it stays empty. If anything is added to `infra`, keep this at the top of `apps/kustomization.yml` so the namespace exists first.
