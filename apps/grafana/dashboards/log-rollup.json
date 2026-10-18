@@ -61,7 +61,9 @@
         "y": 0
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "noValue": "0"
+        },
         "overrides": []
       },
       "options": {
@@ -102,7 +104,9 @@
         "y": 0
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "noValue": "0"
+        },
         "overrides": []
       },
       "options": {
@@ -121,7 +125,7 @@
       "id": 3,
       "type": "stat",
       "title": "SSH/auth failures",
-      "description": "Failed logins from host journals in the range.",
+      "description": "Failed SSH and login attempts on the three nodes, from the host journals: 'Failed password', 'Invalid user', 'authentication failure', 'Connection closed by authenticating user'. 0 means none logged in the range.",
       "datasource": {
         "type": "influxdb",
         "uid": "influxdb-pilab"
@@ -143,7 +147,9 @@
         "y": 0
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "noValue": "0"
+        },
         "overrides": []
       },
       "options": {
@@ -184,7 +190,9 @@
         "y": 0
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "noValue": "0"
+        },
         "overrides": []
       },
       "options": {
@@ -226,7 +234,8 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
+          "unit": "s",
+          "noValue": "n/a"
         },
         "overrides": []
       },
@@ -270,15 +279,14 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "drawStyle": "bars",
-            "lineWidth": 1,
-            "fillOpacity": 60,
-            "showPoints": "never",
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "auto",
             "spanNulls": true,
-            "stacking": {
-              "mode": "normal"
-            }
-          }
+            "lineInterpolation": "linear"
+          },
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -322,15 +330,14 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "drawStyle": "bars",
-            "lineWidth": 1,
-            "fillOpacity": 60,
-            "showPoints": "never",
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "auto",
             "spanNulls": true,
-            "stacking": {
-              "mode": "normal"
-            }
-          }
+            "lineInterpolation": "linear"
+          },
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -374,15 +381,14 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "drawStyle": "bars",
-            "lineWidth": 1,
-            "fillOpacity": 60,
-            "showPoints": "never",
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "auto",
             "spanNulls": true,
-            "stacking": {
-              "mode": "normal"
-            }
-          }
+            "lineInterpolation": "linear"
+          },
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -426,15 +432,14 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "drawStyle": "bars",
-            "lineWidth": 1,
-            "fillOpacity": 60,
-            "showPoints": "never",
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "auto",
             "spanNulls": true,
-            "stacking": {
-              "mode": "normal"
-            }
-          }
+            "lineInterpolation": "linear"
+          },
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -454,7 +459,7 @@
       "id": 10,
       "type": "timeseries",
       "title": "Auth failures by node",
-      "description": "Failed SSH and login attempts.",
+      "description": "Same as the SSH/auth failures tile, split by node: failed SSH and login attempts per hour. No line means none logged.",
       "datasource": {
         "type": "influxdb",
         "uid": "influxdb-pilab"
@@ -478,15 +483,14 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "drawStyle": "bars",
-            "lineWidth": 1,
-            "fillOpacity": 60,
-            "showPoints": "never",
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "auto",
             "spanNulls": true,
-            "stacking": {
-              "mode": "normal"
-            }
-          }
+            "lineInterpolation": "linear"
+          },
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -530,15 +534,14 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "drawStyle": "bars",
-            "lineWidth": 1,
-            "fillOpacity": 60,
-            "showPoints": "never",
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "auto",
             "spanNulls": true,
-            "stacking": {
-              "mode": "normal"
-            }
-          }
+            "lineInterpolation": "linear"
+          },
+          "noValue": "0"
         },
         "overrides": []
       },
@@ -582,15 +585,14 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "drawStyle": "bars",
-            "lineWidth": 1,
-            "fillOpacity": 60,
-            "showPoints": "never",
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "auto",
             "spanNulls": true,
-            "stacking": {
-              "mode": "normal"
-            }
-          }
+            "lineInterpolation": "linear"
+          },
+          "noValue": "0"
         },
         "overrides": []
       },
