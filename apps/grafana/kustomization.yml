@@ -33,6 +33,7 @@ configMapGenerator:
       - dashboards/qnap.json
       - dashboards/cluster-logs.json
       - dashboards/arr-stack-logs.json
+      - dashboards/log-rollup.json
     options:
       labels:
         app: grafana

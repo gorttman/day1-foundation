@@ -1581,3 +1581,65 @@ data:
               summary: "Loki is logging storage errors"
               description: >-
                 Loki has logged more than 5 flush or object-store errors in 10 minutes. Garage or its QNAP /cold data directory may be unavailable or full, so new chunks are not being saved.
+          - uid: log-rollup-stalled
+            title: "Log rollup stalled"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 14400
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: >-
+                    from(bucket: "log_rollup")
+                      |> range(start: -4h)
+                      |> filter(fn: (r) => r._measurement == "log_rollup_run" and r._field == "points")
+                      |> last()
+              - refId: B
+                relativeTimeRange:
+                  from: 14400
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 14400
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: lt
+                        params: [1]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: Alerting
+            execErrState: Alerting
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              report: "https://grafana.i3sec.com.au/d/log-rollup/log-rollup"
+              next_step: "kubectl get cronjob,jobs -n monitoring | grep log-rollup; kubectl logs -n monitoring job/<latest log-rollup job>"
+              summary: "No hourly log rollup for 4 hours"
+              description: >-
+                The log-rollup CronJob has not written its heartbeat to
+                InfluxDB (bucket log_rollup) for 4+ hours, or wrote zero
+                points. The long-term log summaries have a gap until it runs
+                again. It can backfill: python3 log_rollup.py --hours N.
