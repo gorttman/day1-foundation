@@ -1269,6 +1269,65 @@ data:
               summary: "A download has been stuck for more than 6 hours"
               report: "https://movie-status.i3sec.com.au/"
               next_step: "Open the status board: Needs you lists what only a person can fix (usually a manual import in Radarr or Sonarr Activity, Queue). Or use the media-queue-fix skill. If the list is empty, check the queue-clear CronJob in arr-stack."
+          - uid: media-pipeline-stalled
+            title: "Downloads not moving"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: influxdb-pilab
+                model:
+                  refId: A
+                  query: |-
+                    from(bucket: "telegraf")
+                      |> range(start: -30m)
+                      |> filter(fn: (r) => r._measurement == "media_pipeline" and r._field == "stallMinutes")
+                      |> last()
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: "__expr__"
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params: [120]
+                      operator:
+                        type: and
+                      query:
+                        params: ["C"]
+                      reducer:
+                        type: last
+                      type: query
+            noDataState: OK
+            execErrState: Error
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Downloads have not made progress for more than 2 hours"
+              report: "https://movie-status.i3sec.com.au/"
+              next_step: "Usually the VPN: kubectl -n arr-stack get pods (arr-vpn), then the vpn-healer log. If the VPN is fine, look at qBittorrent / SABnzbd in the status board."
+              description: >-
+                Items are queued or downloading in Radarr, Sonarr or Whisparr, but none has fetched any more data or finished for 2+ hours (movie-status stallMinutes). The last two times this happened (7 and 10 September) the whole pipeline sat dead for hours with nothing complaining. This replaces the old download-stall-watch job, which needed the vault mount.
   logging-alerts.yml: |
     # Added 2026-10-18 for the Loki/Garage/Alloy logging stack. These watch the
     # pipeline itself. A missing-logs rule fires on no data or a query error, so
