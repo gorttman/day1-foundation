@@ -27,6 +27,11 @@ spec:
       targetRevision: main
       ref: values
 
+    # Nightly backup RecurringJob (see backup/longhorn-recurring-backup.yml)
+    - repoURL: https://github.com/gorttman/day1-foundation.git
+      targetRevision: main
+      path: apps/longhorn/backup
+
   destination:
     server: https://kubernetes.default.svc
     namespace: longhorn-system

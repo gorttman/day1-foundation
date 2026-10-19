@@ -42,6 +42,14 @@ persistence:
   # only governs volumes created without the parameter.
   defaultDataLocality: best-effort
 
+# Off-cluster backup target (2026-10-19): the QNAP /backup export, subfolder
+# longhorn-backups. The live BackupTarget CR was also patched directly
+# (this chart value only seeds the default on a fresh install). The
+# nightly job is in backup/longhorn-recurring-backup.yml.
+defaultBackupStore:
+  backupTarget: nfs://192.168.20.30:/backup/longhorn-backups
+  pollInterval: 300
+
 defaultSettings:
   # Three schedulable nodes since 2026-10-18 (pinode-02 enabled). Two
   # replicas on three nodes already self-heals: a node loss rebuilds the

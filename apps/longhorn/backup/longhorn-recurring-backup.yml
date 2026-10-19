@@ -1,0 +1,36 @@
+# Nightly Longhorn volume backups to the QNAP backup disk.
+#
+# Target (set on the default BackupTarget, also in longhorn-values.yml):
+#   nfs://192.168.20.30:/backup/longhorn-backups
+#   = /share/external/DEV3302_1/longhorn-backups on the QNAP. The /backup
+#   export already allows the three nodes (qnap_nfs_exports.yml), so no QNAP
+#   export change was needed. Folder created by hand once (mkdir).
+#
+# Why: until 2026-10-19 no Longhorn volume was backed up off-cluster; two
+# replicas protect against a node failing, not against a volume being lost
+# or corrupted. Postgres still has its own pg_dump stream; this covers the
+# rest (InfluxDB, Jellyfin, arr configs, Loki/Garage, Grafana, HA ...).
+#
+# Every volume carries recurring-job-group.longhorn.io/default=enabled
+# (Longhorn adds it), so groups: [default] covers all current and future
+# volumes. To exclude one, label its Volume
+# recurring-job-group.longhorn.io/default=disabled.
+#
+# 06:00 UTC = 17:00 AEDT: after the QNAP's nightly snapshot/mirror runs end
+# (about 16:00 local), so the first full copies do not fight them.
+# concurrency 1: one volume at a time (the QNAP is a 1 GB box).
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: nightly-backup
+  namespace: longhorn-system
+spec:
+  name: nightly-backup
+  task: backup
+  cron: "0 6 * * *"
+  retain: 14
+  concurrency: 1
+  groups:
+    - default
+  labels:
+    schedule: nightly
