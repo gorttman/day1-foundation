@@ -127,6 +127,7 @@ ingress:
   tlsSecret: longhorn-tls
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/renew-before: "632h"
 
 # csi.kubeletRootDir deliberately unset: verified live 2026-08-30 that
 # this k3s uses the default /var/lib/kubelet (no

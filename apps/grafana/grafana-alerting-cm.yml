@@ -506,7 +506,7 @@ data:
         interval: 1m
         rules:
           - uid: cert-expiring-warning
-            title: "Certificate expires in under 14 days"
+            title: "Certificate expires in under 10 days"
             condition: C
             data:
               - refId: A
@@ -548,7 +548,7 @@ data:
                   conditions:
                     - evaluator:
                         type: lt
-                        params: [14]
+                        params: [10]
                       operator:
                         type: and
                       query:
@@ -562,9 +562,9 @@ data:
             labels:
               severity: warning
             annotations:
-              summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in under 14 days"
+              summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in under 10 days"
               report: "https://grafana.i3sec.com.au/d/cluster-overview/cluster-overview"
-              next_step: "cert-manager renews at 30 days left, so something is stuck. Look at Certificates on the dashboard, then run: kubectl -n {{ $labels.namespace }} describe certificate {{ $labels.name }}"
+              next_step: "cert-manager renews 15-35 days before expiry (staggered per app), so something is stuck. Look at Certificates on the dashboard, then run: kubectl -n {{ $labels.namespace }} describe certificate {{ $labels.name }}"
           - uid: cert-expiring-critical
             title: "Certificate expires in under 5 days"
             condition: C

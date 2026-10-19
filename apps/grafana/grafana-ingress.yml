@@ -9,6 +9,7 @@ metadata:
     argocd.argoproj.io/managed-by: argocd
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/renew-before: "648h"
 spec:
   # Internal-only: no Cloudflare Tunnel annotation; DNS in dns-conf.
   # Global http->https redirect applies (day0-bootstrap apps/traefik).
