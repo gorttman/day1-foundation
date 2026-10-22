@@ -27,7 +27,7 @@ metadata:
 spec:
   name: nightly-backup
   task: backup
-  cron: "0 6 * * *"
+  cron: "15 7 * * *"
   retain: 14
   concurrency: 1
   groups:
