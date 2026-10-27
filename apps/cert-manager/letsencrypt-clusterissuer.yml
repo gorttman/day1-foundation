@@ -1,0 +1,71 @@
+# Let's Encrypt issuers using DNS-01 via Cloudflare.
+#
+# Why DNS-01 and not HTTP-01: this file previously carried an HTTP-01
+# solver and was never wired into kustomization.yml, because HTTP-01
+# cannot work on this network. It requires Let's Encrypt to reach
+# http://<host>/.well-known/... from the public internet, but nothing
+# here is port-forwarded and every tunnelled hostname sits behind a
+# default-deny mTLS WAF rule at Cloudflare's edge. DNS-01 proves domain
+# control by writing a TXT record instead, so nothing needs to be
+# publicly reachable - which is exactly right for a LAN-only service.
+#
+# Why this exists at all: the Immich mobile app cannot be made to trust
+# the i3sec-private-ca. Its networking layer (background_downloader)
+# rejects private CAs in release builds and ignores the iOS/Android
+# system trust store entirely - a long-standing upstream limitation
+# (immich-app/immich issues #28929, #15188, discussion #2375), not
+# something fixable from this side. The app's own "SSL certificate"
+# import setting does not change that. A publicly-trusted cert is the
+# only path that makes the app work, and it costs nothing.
+#
+# The token in cloudflare-api-token is the SAME Cloudflare token already
+# used by cloudflare-tf (verified 2026-08-21 to carry zone read + DNS
+# edit, which is all DNS-01 needs) - copied into this namespace rather
+# than minting a second one, so there is one credential to rotate.
+#
+# NOTE: cert-manager needs --dns01-recursive-nameservers-only for these
+# to work here - see day0-bootstrap/apps/cert-manager/cert-manager-app.yml
+# for why (split-horizon DNS breaks the challenge self-check).
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    # Staging first for any new plumbing: its rate limits are effectively
+    # unlimited, where prod allows only 5 failed validations per hostname
+    # per hour. Certs from this issuer are NOT publicly trusted - it is
+    # for proving the DNS-01 path works, never for live traffic.
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: gorttman@i3sec.com.au
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
+        selector:
+          dnsZones:
+            - i3sec.com.au
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: gorttman@i3sec.com.au
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
+        selector:
+          dnsZones:
+            - i3sec.com.au

@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager-config
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: day1-foundation
+  annotations:
+    # The cert-manager controller itself is day0-bootstrap. This app holds its
+    # config (ClusterIssuers, private CA, Cloudflare token) and moved here from
+    # day2-services 2026-10-28: day1 apps (grafana, influxdb, longhorn) request
+    # certificates, so the issuers belong in the foundation layer, like
+    # metallb-config. Early wave so issuers exist before any ingress asks.
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/gorttman/day1-foundation.git
+    targetRevision: main
+    path: apps/cert-manager
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 10
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
