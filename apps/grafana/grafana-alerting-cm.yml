@@ -1793,8 +1793,10 @@ data:
                     from(bucket: "telegraf")
                       |> range(start: -36h)
                       |> filter(fn: (r) => r._measurement == "infra_drift" and r._field == "drifted")
-                      |> group()
+                      |> group(columns: ["stack"])
                       |> last()
+                      |> map(fn: (r) => ({_time: r._time, stack: r.stack, _value: float(v: r._value)}))
+                      |> group(columns: ["stack"])
               - refId: B
                 relativeTimeRange:
                   from: 900
@@ -1852,6 +1854,7 @@ data:
                       |> filter(fn: (r) => r._measurement == "infra_drift" and r._field == "check_ok")
                       |> group()
                       |> min()
+                      |> map(fn: (r) => ({_time: r._time, _value: float(v: r._value)}))
               - refId: B
                 relativeTimeRange:
                   from: 900
