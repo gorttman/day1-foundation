@@ -1,41 +1,95 @@
-# Quiet window: 19:30-23:00 local (Australia/Sydney clock, DST-aware), added
-# 2026-11-02. At 19:30 every CronJob that is not already suspended and is not
-# labelled quiet-window-exempt=true is suspended and tagged with the annotation
-# quiet-window-paused. At 23:00 only the CronJobs carrying that annotation are
-# resumed, so anything paused by hand stays paused. Jobs already running at
-# 19:30 are left to finish. Argo CD does not undo this: no manifest sets
-# spec.suspend, so Argo ignores the live value.
+# STRICT QUIET WINDOW: 19:30-23:00 local (Australia/Sydney clock, DST-aware).
+# Rule from the owner, 2026-11-02, "hard rule until the new box is here": in
+# that window nothing but Jellyfin runs (the QNAP is failing and the media
+# server must not compete for it).
 #
-# Not covered: the longhorn-system namespace (Longhorn owns those CronJobs; its
-# backup runs 16:15, outside the window),
-# the QNAP's own crontab, host cron/systemd timers, and Deployments.
-# To exempt a CronJob, add the label quiet-window-exempt: "true".
+# 19:30 begin: (1) Argo CD's application controller is scaled to 0 first, or
+# its self-heal would restart everything within minutes; (2) every CronJob not
+# already suspended is suspended and tagged quiet-window-paused; (3) every
+# Deployment and StatefulSet outside the exempt namespaces below is scaled to 0
+# after its replica count is saved in the annotation quiet-window-replicas.
+# 23:00 end (repeated 23:10 and 23:25, it is idempotent): replicas restored from
+# the annotation (StatefulSets first, then Deployments), tagged CronJobs
+# resumed, Argo CD restored LAST so it finds a healthy cluster.
+#
+# Exempt namespaces (Jellyfin cannot run without them): kube-system,
+# kube-public, kube-node-lease, default, longhorn-system, metallb-system,
+# ingress-nginx, pihole, cert-manager, argocd (handled specially), jellyfin,
+# quiet-window. Anything labelled quiet-window-exempt=true is also skipped.
+# DaemonSets cannot be scaled and keep running (alloy, cloudflared,
+# telegraf-node). Jobs already running at 19:30 are left to finish. Things
+# stopped by hand (no annotation) are never restarted by this.
+# Dry run: set DRY_RUN=true in a one-off Job and read its log.
+# Remove or loosen this when the replacement NAS is in service.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: quiet-window-scripts
   namespace: quiet-window
 data:
-  begin.sh: |
+  common.sh: |
     set -u
+    DRY="${DRY_RUN:-false}"
+    EXEMPT=" kube-system kube-public kube-node-lease default longhorn-system metallb-system ingress-nginx pihole cert-manager argocd jellyfin quiet-window "
+    act() { if [ "$DRY" = true ]; then echo "[dry-run] $*"; else "$@"; fi; }
+    ARGO_STS=argocd-application-controller
+  begin.sh: |
+    . /scripts/common.sh
+    echo "== begin quiet window $(date -u +%FT%TZ) dry=$DRY"
+    cur=$(kubectl -n argocd get statefulset $ARGO_STS -o jsonpath='{.spec.replicas}')
+    if [ "$cur" != "0" ]; then
+      act kubectl -n argocd annotate statefulset $ARGO_STS quiet-window-replicas="$cur" --overwrite
+      act kubectl -n argocd scale statefulset $ARGO_STS --replicas=0
+      echo "argo controller off"
+    fi
     kubectl get cronjob -A -l 'quiet-window-exempt!=true' --no-headers \
       -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,SUSP:.spec.suspend \
       | awk '$1 != "quiet-window" && $1 != "longhorn-system" && $3 != "true" {print $1, $2}' \
       | while read -r ns name; do
-          kubectl -n "$ns" patch cronjob "$name" --type merge \
+          act kubectl -n "$ns" patch cronjob "$name" --type merge \
             -p '{"metadata":{"annotations":{"quiet-window-paused":"true"}},"spec":{"suspend":true}}' \
-            && echo "paused $ns/$name"
+            && echo "paused cronjob $ns/$name"
         done
+    for kind in deployment statefulset; do
+      kubectl get $kind -A -l 'quiet-window-exempt!=true' --no-headers \
+        -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,REP:.spec.replicas \
+        | while read -r ns name rep; do
+            case "$EXEMPT" in *" $ns "*) continue;; esac
+            if [ "$rep" = "0" ] || [ "$rep" = "<none>" ]; then continue; fi
+            act kubectl -n "$ns" annotate "$kind" "$name" quiet-window-replicas="$rep" --overwrite
+            act kubectl -n "$ns" scale "$kind" "$name" --replicas=0 \
+              && echo "stopped $kind $ns/$name (was $rep)"
+          done
+    done
+    echo "== begin done"
   end.sh: |
-    set -u
+    . /scripts/common.sh
+    echo "== end quiet window $(date -u +%FT%TZ) dry=$DRY"
+    for kind in statefulset deployment; do
+      kubectl get $kind -A --no-headers \
+        -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,REP:.metadata.annotations.quiet-window-replicas \
+        | awk '$3 != "<none>" && $1 != "argocd" {print $1, $2, $3}' \
+        | while read -r ns name rep; do
+            act kubectl -n "$ns" scale "$kind" "$name" --replicas="$rep" \
+              && act kubectl -n "$ns" annotate "$kind" "$name" quiet-window-replicas- \
+              && echo "restored $kind $ns/$name to $rep"
+          done
+    done
     kubectl get cronjob -A --no-headers \
       -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,P:.metadata.annotations.quiet-window-paused \
       | awk '$3 == "true" {print $1, $2}' \
       | while read -r ns name; do
-          kubectl -n "$ns" patch cronjob "$name" --type merge \
+          act kubectl -n "$ns" patch cronjob "$name" --type merge \
             -p '{"metadata":{"annotations":{"quiet-window-paused":null}},"spec":{"suspend":false}}' \
-            && echo "resumed $ns/$name"
+            && echo "resumed cronjob $ns/$name"
         done
+    rep=$(kubectl -n argocd get statefulset $ARGO_STS -o jsonpath='{.metadata.annotations.quiet-window-replicas}')
+    if [ -n "$rep" ]; then
+      act kubectl -n argocd scale statefulset $ARGO_STS --replicas="$rep"
+      act kubectl -n argocd annotate statefulset $ARGO_STS quiet-window-replicas-
+      echo "argo controller back to $rep"
+    fi
+    echo "== end done"
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -75,14 +129,14 @@ metadata:
   name: quiet-window-end
   namespace: quiet-window
 spec:
-  schedule: "0 23 * * *"
+  schedule: "0,10,25 23 * * *"
   timeZone: Australia/Sydney
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
-      backoffLimit: 2
+      backoffLimit: 4
       ttlSecondsAfterFinished: 86400
       template:
         spec:

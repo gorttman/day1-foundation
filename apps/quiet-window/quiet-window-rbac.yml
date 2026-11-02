@@ -1,4 +1,5 @@
-# The quiet-window jobs may read and patch CronJobs in every namespace, nothing else.
+# The quiet-window jobs may list/patch CronJobs, Deployments and StatefulSets (and their
+# scale) in every namespace, nothing else.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -13,6 +14,12 @@ rules:
   - apiGroups: ["batch"]
     resources: ["cronjobs"]
     verbs: ["get", "list", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale", "statefulsets/scale"]
+    verbs: ["get", "patch", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
