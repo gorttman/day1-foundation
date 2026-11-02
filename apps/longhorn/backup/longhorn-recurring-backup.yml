@@ -16,8 +16,10 @@
 # volumes. To exclude one, label its Volume
 # recurring-job-group.longhorn.io/default=disabled.
 #
-# 06:00 UTC = 17:00 AEDT: after the QNAP's nightly snapshot/mirror runs end
-# (about 16:00 local), so the first full copies do not fight them.
+# 15:15 UTC = 02:15 AEDT. Moved from 07:15 UTC (18:15 AEDT) on 2026-11-02: the
+# backup ran through the evening, when the household watches Jellyfin, and
+# the QNAP (1 GB, end of life) stalled NFS mounts for the whole cluster.
+# Evenings (about 16:00-23:00 local) are now a quiet window for heavy jobs.
 # concurrency 1: one volume at a time (the QNAP is a 1 GB box).
 apiVersion: longhorn.io/v1beta2
 kind: RecurringJob
@@ -27,7 +29,7 @@ metadata:
 spec:
   name: nightly-backup
   task: backup
-  cron: "15 7 * * *"
+  cron: "15 15 * * *"
   retain: 14
   concurrency: 1
   groups:
