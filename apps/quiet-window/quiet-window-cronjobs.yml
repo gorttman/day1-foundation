@@ -1,0 +1,102 @@
+# Quiet window: 19:30-23:00 local (Australia/Sydney clock, DST-aware), added
+# 2026-11-02. At 19:30 every CronJob that is not already suspended and is not
+# labelled quiet-window-exempt=true is suspended and tagged with the annotation
+# quiet-window-paused. At 23:00 only the CronJobs carrying that annotation are
+# resumed, so anything paused by hand stays paused. Jobs already running at
+# 19:30 are left to finish. Argo CD does not undo this: no manifest sets
+# spec.suspend, so Argo ignores the live value.
+#
+# Not covered: the longhorn-system namespace (Longhorn owns those CronJobs; its
+# backup runs 16:15, outside the window),
+# the QNAP's own crontab, host cron/systemd timers, and Deployments.
+# To exempt a CronJob, add the label quiet-window-exempt: "true".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: quiet-window-scripts
+  namespace: quiet-window
+data:
+  begin.sh: |
+    set -u
+    kubectl get cronjob -A -l 'quiet-window-exempt!=true' --no-headers \
+      -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,SUSP:.spec.suspend \
+      | awk '$1 != "quiet-window" && $1 != "longhorn-system" && $3 != "true" {print $1, $2}' \
+      | while read -r ns name; do
+          kubectl -n "$ns" patch cronjob "$name" --type merge \
+            -p '{"metadata":{"annotations":{"quiet-window-paused":"true"}},"spec":{"suspend":true}}' \
+            && echo "paused $ns/$name"
+        done
+  end.sh: |
+    set -u
+    kubectl get cronjob -A --no-headers \
+      -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,P:.metadata.annotations.quiet-window-paused \
+      | awk '$3 == "true" {print $1, $2}' \
+      | while read -r ns name; do
+          kubectl -n "$ns" patch cronjob "$name" --type merge \
+            -p '{"metadata":{"annotations":{"quiet-window-paused":null}},"spec":{"suspend":false}}' \
+            && echo "resumed $ns/$name"
+        done
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: quiet-window-begin
+  namespace: quiet-window
+spec:
+  schedule: "30 19 * * *"
+  timeZone: Australia/Sydney
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          serviceAccountName: quiet-window
+          restartPolicy: Never
+          containers:
+            - name: kubectl
+              image: docker.io/bitnamilegacy/kubectl:1.33.4
+              command: ["sh", "/scripts/begin.sh"]
+              resources:
+                requests: {cpu: 10m, memory: 32Mi}
+                limits: {memory: 128Mi}
+              volumeMounts:
+                - {name: scripts, mountPath: /scripts}
+          volumes:
+            - name: scripts
+              configMap: {name: quiet-window-scripts}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: quiet-window-end
+  namespace: quiet-window
+spec:
+  schedule: "0 23 * * *"
+  timeZone: Australia/Sydney
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          serviceAccountName: quiet-window
+          restartPolicy: Never
+          containers:
+            - name: kubectl
+              image: docker.io/bitnamilegacy/kubectl:1.33.4
+              command: ["sh", "/scripts/end.sh"]
+              resources:
+                requests: {cpu: 10m, memory: 32Mi}
+                limits: {memory: 128Mi}
+              volumeMounts:
+                - {name: scripts, mountPath: /scripts}
+          volumes:
+            - name: scripts
+              configMap: {name: quiet-window-scripts}

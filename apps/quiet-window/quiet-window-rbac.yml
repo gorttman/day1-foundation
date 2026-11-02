@@ -1,0 +1,28 @@
+# The quiet-window jobs may read and patch CronJobs in every namespace, nothing else.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: quiet-window
+  namespace: quiet-window
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: quiet-window
+rules:
+  - apiGroups: ["batch"]
+    resources: ["cronjobs"]
+    verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: quiet-window
+subjects:
+  - kind: ServiceAccount
+    name: quiet-window
+    namespace: quiet-window
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: quiet-window

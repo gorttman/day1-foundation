@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: quiet-window
+
+commonLabels:
+  app.kubernetes.io/part-of: day1-foundation
+  tier: day1
+
+resources:
+  - quiet-window-namespace.yml
+  - quiet-window-rbac.yml
+  - quiet-window-cronjobs.yml
