@@ -369,6 +369,10 @@ data:
                       {key: "kube-system/traefik", _value: 0},
                       {key: "kube-system/coredns", _value: 0},
                       {key: "kube-system/sealed-secrets-controller", _value: 0},
+                      // Shared memory vault: the Obsidian Sync client and the memory server (both quiet-window exempt).
+                      // If the Sync client stops, every device reads an old copy and nothing reports it.
+                      {key: "obsidian/obsidian", _value: 0},
+                      {key: "obsidian/memory", _value: 0},
                     ])
 
                     keys = expected |> findColumn(fn: (key) => true, column: "key")
